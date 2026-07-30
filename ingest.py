@@ -1,7 +1,8 @@
 import json
 import os
 from datetime import datetime
-
+from rank_bm25 import BM25Okapi
+import joblib
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
@@ -23,6 +24,9 @@ embeddings = HuggingFaceEmbeddings(
     model_name=EMBEDDING_MODEL
 )
 
+BM25_INDEX = "bm25/bm25_index.pkl"
+
+os.makedirs("bm25", exist_ok=True)
 
 # -----------------------------------
 # Registry Functions
@@ -79,6 +83,22 @@ def ingest_pdf(pdf_path):
     )
 
     chunks = splitter.split_documents(documents)
+
+    tokenized_corpus = [
+        chunk.page_content.lower().split()
+        for chunk in chunks
+    ]
+
+    bm25 = BM25Okapi(tokenized_corpus)
+
+    joblib.dump(
+        {
+            "bm25": bm25,
+            "documents": chunks
+        },
+        BM25_INDEX
+    )
+    #Now every upload creates at "bm25/bm25_index.pkl"
 
     print(f"Chunks : {len(chunks)}")
 

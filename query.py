@@ -5,6 +5,9 @@ from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
+from rank_bm25 import BM25Okapi
+import joblib
+from reranker import rerank
 
 load_dotenv()
 
@@ -19,6 +22,8 @@ EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 LLM_MODEL = "llama-3.3-70b-versatile"
 
 TOP_K = 3
+
+BM25_INDEX = "bm25/bm25_index.pkl"
 
 # ------------------------------------
 # Embeddings
@@ -60,10 +65,11 @@ def ask(question, use_web_search=False):
 
     try:
 
-        docs = vector_db.similarity_search(
-            question,
-            k=TOP_K
-        )
+        # hybrid search
+        docs = hybrid_search(question)
+
+        # Cross-Encoder Reranker
+        docs, rerank_scores = rerank( question, docs, top_k=3 )
 
         context = ""
 
@@ -177,7 +183,11 @@ Answer
 
             "web_used": use_web_search,
 
-            "web_sources": web_sources
+            "web_sources": web_sources,
+
+            "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+
+            "rerank_scores": rerank_scores,
 
         }
 
@@ -202,6 +212,59 @@ Answer
             "web_sources": []
 
         }
+
+
+def bm25_search(question, k=5):
+
+    if not os.path.exists(BM25_INDEX):
+        return []
+
+    index = joblib.load(BM25_INDEX)
+
+    bm25 = index["bm25"]
+
+    docs = index["documents"]
+
+    query = question.lower().split()
+
+    scores = bm25.get_scores(query)
+
+    ranked = sorted(
+        zip(scores, docs),
+        reverse=True,
+        key=lambda x: x[0]
+    )
+
+    return [doc for score, doc in ranked[:k]]
+
+
+def hybrid_search(question):
+
+    dense_docs = vector_db.similarity_search(
+        question,
+        k=5
+    )
+
+    sparse_docs = bm25_search(
+        question,
+        k=5
+    )
+
+    results = []
+
+    seen = set()
+
+    for doc in dense_docs + sparse_docs:
+
+        text = doc.page_content
+
+        if text not in seen:
+
+            results.append(doc)
+
+            seen.add(text)
+
+    return results
 
 
 # ------------------------------------

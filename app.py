@@ -202,6 +202,14 @@ if question:
 
                 st.write("**Web Search :** Not Used")
 
+            # Cross encoder - Reranker score
+            st.write(f"**Reranker:** {result['reranker']}")
+
+            st.write("**Reranker Scores:**")
+
+            for score in result["rerank_scores"]:
+                st.write(f"{score:.4f}")
+
     st.session_state.messages.append(
         {
             "role": "assistant",
