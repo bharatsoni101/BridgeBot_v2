@@ -11,17 +11,17 @@
 
 --------------
 
-| Phase | Feature                              | Priority     |
-|-------|--------------------------------------|--------------|
-| 1     | Hybrid Search (BM25 + Chroma) - Done | ⭐⭐⭐⭐⭐  |  
-| 2     | Cross-Encoder Reranker       - Done  | ⭐⭐⭐⭐⭐  | 
-| 3     | Conversation Memory                  | ⭐⭐⭐⭐⭐  |
-| 4     | Streaming Responses                  | ⭐⭐⭐⭐    |
-| 5     | Metadata Filtering                   | ⭐⭐⭐⭐         |
-| 6     | Multi-Query Retrieval                | ⭐⭐⭐⭐         |
-| 7     | Parent Document Retriever            | ⭐⭐⭐⭐         |
-| 8     | Tavily Web Search                    | ⭐⭐⭐⭐         |
-| 9     | Knowledge Base Dashboard             | ⭐⭐⭐          |
-| 10    | LLM & Embedding Selection            | ⭐⭐⭐          |
-| 11    | Evaluation Metrics                   | ⭐⭐⭐          |
-| 12    | Agentic RAG                          | ⭐⭐⭐⭐⭐        |
+| Phase | Feature                              | Priority      |
+|-------|--------------------------------------|---------------|
+| 1     | Hybrid Search (BM25 + Chroma) - Done | ⭐⭐⭐⭐⭐         |  
+| 2     | Cross-Encoder Reranker       - Done  | ⭐⭐⭐⭐⭐         | 
+| 3     | Conversation Memory                  | ⭐⭐⭐⭐⭐         |
+| 4     | Streaming Responses                  | ⭐⭐⭐⭐          |
+| 5     | Metadata Filtering                   | ⭐⭐⭐⭐          |
+| 6     | Multi-Query Retrieval                | ⭐⭐⭐⭐          |
+| 7     | Parent Document Retriever            | ⭐⭐⭐⭐          |
+| 8     | Tavily Web Search                    | ⭐⭐⭐⭐          |
+| 9     | Knowledge Base Dashboard             | ⭐⭐⭐           |
+| 10    | LLM & Embedding Selection            | ⭐⭐⭐           |
+| 11    | Evaluation Metrics                   | ⭐⭐⭐           |
+| 12    | Agentic RAG                          | ⭐⭐⭐⭐⭐         |

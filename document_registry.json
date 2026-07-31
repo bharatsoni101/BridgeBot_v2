@@ -1,29 +1,3 @@
 [
-    {
-        "name": "Sholay.pdf",
-        "uploaded_on": "30-Jul-2026 09:43",
-        "pages": 4,
-        "chunks": 6,
-        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
-        "vector_db": "ChromaDB",
-        "status": "Indexed"
-    },
-    {
-        "name": "Nadiya Ke Paar.pdf",
-        "uploaded_on": "30-Jul-2026 09:44",
-        "pages": 2,
-        "chunks": 4,
-        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
-        "vector_db": "ChromaDB",
-        "status": "Indexed"
-    },
-    {
-        "name": "Dharam Veer.pdf",
-        "uploaded_on": "30-Jul-2026 09:44",
-        "pages": 2,
-        "chunks": 5,
-        "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
-        "vector_db": "ChromaDB",
-        "status": "Indexed"
-    }
+
 ]
