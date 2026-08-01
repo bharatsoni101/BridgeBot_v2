@@ -304,11 +304,7 @@ def bm25_search(question, k=5):
 
     scores = bm25.get_scores(query)
 
-    ranked = sorted(
-        zip(scores, docs),
-        reverse=True,
-        key=lambda x: x[0]
-    )
+    ranked = sorted(zip(scores, docs), reverse=True, key=lambda x: x[0])
 
     rag_logger.info("BM25 returned %d chunks", min(k, len(ranked)))
 
@@ -319,16 +315,11 @@ def hybrid_search(question):
 
     rag_logger.info("Hybrid Search Started")
 
-    dense_docs = vector_db.similarity_search(
-        question,
-        k=5
-    )
+    dense_docs = vector_db.similarity_search(question, k=5)
+
     rag_logger.info("Dense Search : %d chunks", len(dense_docs))
 
-    sparse_docs = bm25_search(
-        question,
-        k=5
-    )
+    sparse_docs = bm25_search(question, k=5)
 
     rag_logger.info("BM25 Search : %d chunks", len(sparse_docs))
 

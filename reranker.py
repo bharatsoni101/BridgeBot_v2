@@ -50,7 +50,7 @@ def rerank(question, documents, top_k=3):
 
         if len(documents) == 0:
 
-            logger.warning("No documents received for reranking.")
+            rag_logger.warning("No documents received for reranking.")
 
             return [], []
 
