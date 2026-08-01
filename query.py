@@ -8,8 +8,11 @@ from langchain_groq import ChatGroq
 from rank_bm25 import BM25Okapi
 import joblib
 from reranker import rerank
+import time
+from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
 
 load_dotenv()
+
 
 # ------------------------------------
 # Configuration
@@ -63,23 +66,44 @@ search = DuckDuckGoSearchRun()
 
 def ask(question, use_web_search=False):
 
+    request_start = time.perf_counter()
+
+    rag_logger.info("=" * 80)
+    rag_logger.info("New Query")
+    rag_logger.info("Question : %s", question)
+    rag_logger.info("Web Search : %s", use_web_search)
+
     try:
 
-        # hybrid search
+        # ---------------------------------------------------
+        # Hybrid Search
+        # ---------------------------------------------------
+
+        start = time.perf_counter()
+
         docs = hybrid_search(question)
 
-        # Cross-Encoder Reranker
-        docs, rerank_scores = rerank( question, docs, top_k=3 )
+        performance_logger.info("Hybrid Search returned %d chunks in %.3f sec", len(docs), time.perf_counter() - start)
+
+        # ---------------------------------------------------
+        # Cross Encoder
+        # ---------------------------------------------------
+
+        start = time.perf_counter()
+
+        docs, rerank_scores = rerank(
+            question,
+            docs,
+            top_k=3
+        )
+
+        performance_logger.info("Cross Encoder selected %d chunks in %.3f sec", len(docs), time.perf_counter() - start)
 
         context = ""
 
         pages = set()
 
         documents = set()
-
-        # -----------------------------
-        # Vector DB Context
-        # -----------------------------
 
         for doc in docs:
 
@@ -92,51 +116,75 @@ def ask(question, use_web_search=False):
             source = doc.metadata.get("source", "")
 
             if source:
-                documents.add(os.path.basename(source))
+                documents.add(
+                    os.path.basename(source)
+                )
 
-        # -----------------------------
+        rag_logger.info("Documents : %s", ", ".join(sorted(documents)))
+
+        rag_logger.info("Pages : %s", sorted(pages))
+
+        # ---------------------------------------------------
         # Optional Web Search
-        # -----------------------------
+        # ---------------------------------------------------
 
         web_context = ""
+
         web_sources = []
 
         if use_web_search:
 
             try:
 
+                start = time.perf_counter()
+
+                rag_logger.info("DuckDuckGo Search Started")
+
                 web_context = search.run(question)
 
+                performance_logger.info("Web Search completed in %.3f sec", time.perf_counter() - start)
+
                 if web_context:
+
                     context += "\n\n========== WEB SEARCH ==========\n\n"
+
                     context += web_context
 
                     web_sources.append("DuckDuckGo")
 
+                    rag_logger.info("Web Context Size : %d chars", len(web_context))
+
             except Exception as e:
 
-                print(f"Web Search Error : {e}")
-
-        # -----------------------------
-        # No Context Found
-        # -----------------------------
+                error_logger.exception(f"Web Search Failed: {e}")
 
         if context.strip() == "":
 
-            return {
-                "answer": "No relevant information found.",
-                "llm": LLM_MODEL,
-                "vector_db": "ChromaDB",
-                "documents": [],
-                "pages": [],
-                "chunks": 0,
-                "web_used": use_web_search,
-                "web_sources": web_sources
-            }
+            logger.warning("No Context Found")
 
-        # -----------------------------
-        # Prompt
-        # -----------------------------
+            return {
+
+                "answer": "No relevant information found.",
+
+                "llm": LLM_MODEL,
+
+                "vector_db": "ChromaDB",
+
+                "documents": [],
+
+                "pages": [],
+
+                "chunks": 0,
+
+                "web_used": use_web_search,
+
+                "web_sources": web_sources,
+
+                "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+
+                "rerank_scores": []
+
+            }
 
         prompt = f"""
 You are an expert AI assistant.
@@ -165,7 +213,27 @@ Answer
 ========================
 """
 
+        # ---------------------------------------------------
+        # LLM
+        # ---------------------------------------------------
+
+        start = time.perf_counter()
+
+        rag_logger.info("Sending Prompt To Groq")
+
         response = llm.invoke(prompt)
+
+        llm_time = time.perf_counter() - start
+
+        performance_logger.info("Groq Response Time : %.3f sec", llm_time)
+
+        rag_logger.info("Answer Length : %d characters", len(response.content))
+
+        total_time = time.perf_counter() - request_start
+
+        performance_logger.info("Total Query Time : %.3f sec", total_time)
+
+        rag_logger.info("=" * 80)
 
         return {
 
@@ -187,11 +255,13 @@ Answer
 
             "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2",
 
-            "rerank_scores": rerank_scores,
+            "rerank_scores": rerank_scores
 
         }
 
     except Exception as ex:
+
+        error_logger.exception("Query Failed")
 
         return {
 
@@ -209,12 +279,17 @@ Answer
 
             "web_used": use_web_search,
 
-            "web_sources": []
+            "web_sources": [],
+
+            "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+
+            "rerank_scores": []
 
         }
 
-
 def bm25_search(question, k=5):
+
+    rag_logger.info("BM25 Search Started")
 
     if not os.path.exists(BM25_INDEX):
         return []
@@ -235,20 +310,27 @@ def bm25_search(question, k=5):
         key=lambda x: x[0]
     )
 
+    rag_logger.info("BM25 returned %d chunks", min(k, len(ranked)))
+
     return [doc for score, doc in ranked[:k]]
 
 
 def hybrid_search(question):
 
+    rag_logger.info("Hybrid Search Started")
+
     dense_docs = vector_db.similarity_search(
         question,
         k=5
     )
+    rag_logger.info("Dense Search : %d chunks", len(dense_docs))
 
     sparse_docs = bm25_search(
         question,
         k=5
     )
+
+    rag_logger.info("BM25 Search : %d chunks", len(sparse_docs))
 
     results = []
 
@@ -263,6 +345,8 @@ def hybrid_search(question):
             results.append(doc)
 
             seen.add(text)
+
+    rag_logger.info("Hybrid Search Final : %d chunks", len(results))
 
     return results
 

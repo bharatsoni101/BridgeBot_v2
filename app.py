@@ -6,6 +6,9 @@ import streamlit as st
 
 from ingest import ingest_pdf
 from query import ask
+import time
+from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
+
 
 # ---------------------------------------------------
 # Configuration
@@ -42,6 +45,8 @@ def load_uploaded_documents():
     with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
 
+    rag_logger.info("Loaded %d documents from registry", len(data) )
+
     return pd.DataFrame(data)
 
 
@@ -77,11 +82,23 @@ with st.sidebar:
 
         st.success("PDF uploaded successfully.")
 
+        rag_logger.info("PDF Uploaded : %s", uploaded_file.name)
+
         if st.button("🚀 Prepare Knowledge Base"):
 
             with st.spinner("Creating Knowledge Base..."):
 
-                ingest_pdf(pdf_path)
+                rag_logger.info("Preparing Knowledge Base : %s", uploaded_file.name)
+
+                start = time.perf_counter()
+
+                status = ingest_pdf(pdf_path)
+
+                elapsed = time.perf_counter() - start
+
+                rag_logger.info("Knowledge Base Status : %s", status)
+
+                performance_logger.info("Knowledge Base Creation Time : %.3f sec", elapsed)
 
             st.success("Knowledge Base Ready!")
 
@@ -112,6 +129,8 @@ with st.sidebar:
     if st.button("🗑 Clear Chat"):
 
         st.session_state.messages = []
+
+        rag_logger.info("Chat History Cleared")
 
         st.rerun()
 
@@ -144,6 +163,7 @@ use_web_search = st.checkbox(
     "🌐 Enable Web Search",
     value=False
 )
+rag_logger.info("Web Search Enabled : %s", use_web_search)
 
 question = st.chat_input(
     "Ask anything about your documents...",
@@ -151,6 +171,14 @@ question = st.chat_input(
 )
 
 if question:
+
+    request_start = time.perf_counter()
+
+    rag_logger.info("=" * 80)
+
+    rag_logger.info( "New Question Received" )
+
+    rag_logger.info( "Question : %s", question )
 
     st.session_state.messages.append(
         {
@@ -167,7 +195,34 @@ if question:
 
         with st.spinner("Searching Knowledge Base..."):
 
-            result = ask(question, use_web_search=use_web_search)
+            query_start = time.perf_counter()
+            try:
+                result = ask( question, use_web_search=use_web_search )
+            except Exception as e:
+
+                error_logger.exception(f"Application exception : {e}")
+
+                st.error("Unexpected Error")
+
+            rag_logger.info( "Retrieved Documents : %s", ", ".join(result["documents"]) )
+
+            rag_logger.info( "Retrieved Pages : %s", result["pages"] )
+
+            rag_logger.info("Reranker : %s", result["reranker"])
+
+            rag_logger.info("Reranker Scores : %s", result["rerank_scores"])
+
+            rag_logger.info("Web Search Used : %s", result["web_used"])
+
+            if result["web_used"]:
+
+                rag_logger.info("Web Sources : %s", result["web_sources"])
+
+            rag_logger.info("Answer Length : %d characters", len(result["answer"]))
+
+            query_time = time.perf_counter() - query_start
+
+            performance_logger.info( "Query Processing Time : %.3f sec", query_time )
 
         st.markdown(result["answer"])
 
@@ -216,6 +271,12 @@ if question:
             "content": result["answer"]
         }
     )
+
+    total = time.perf_counter() - request_start
+
+    performance_logger.info("Total Request Time : %.3f sec", total)
+
+    rag_logger.info("=" * 80)
 
 
 # ---------------------------------------------------

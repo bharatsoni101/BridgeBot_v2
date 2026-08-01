@@ -8,6 +8,9 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+import time
+
+from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
 
 load_dotenv()
 
@@ -53,100 +56,159 @@ def save_registry(data):
 
 def ingest_pdf(pdf_path):
 
+    request_start = time.perf_counter()
+
     document_name = os.path.basename(pdf_path)
 
-    registry = load_registry()
+    rag_logger.info("=" * 80)
+    rag_logger.info("Knowledge Base Creation Started")
+    rag_logger.info("Document : %s", document_name)
 
-    # -----------------------------------
-    # Skip duplicate documents
-    # -----------------------------------
+    try:
 
-    if any(doc["name"] == document_name for doc in registry):
+        registry = load_registry()
 
-        print(f"{document_name} already exists.")
+        # --------------------------------------------------------
+        # Duplicate Check
+        # --------------------------------------------------------
+
+        if any(doc["name"] == document_name for doc in registry):
+
+            logger.warning("Duplicate document detected : %s", document_name)
+
+            return False
+
+        # --------------------------------------------------------
+        # Load PDF
+        # --------------------------------------------------------
+
+        start = time.perf_counter()
+
+        loader = PyPDFLoader(pdf_path)
+
+        documents = loader.load()
+
+        pdf_load_time = time.perf_counter() - start
+
+        total_pages = len(documents)
+
+        rag_logger.info("Pages : %d", total_pages)
+
+        performance_logger.info("PDF Loaded in %.3f sec", pdf_load_time)
+
+        # --------------------------------------------------------
+        # Chunking
+        # --------------------------------------------------------
+
+        start = time.perf_counter()
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200
+        )
+
+        chunks = splitter.split_documents(documents)
+
+        chunk_time = time.perf_counter() - start
+
+        rag_logger.info("Chunks Created : %d", len(chunks))
+
+        performance_logger.info("Chunking Time : %.3f sec", chunk_time)
+
+        # --------------------------------------------------------
+        # BM25 Index
+        # --------------------------------------------------------
+
+        start = time.perf_counter()
+
+        tokenized_corpus = [
+            chunk.page_content.lower().split()
+            for chunk in chunks
+        ]
+
+        bm25 = BM25Okapi(tokenized_corpus)
+
+        joblib.dump(
+            {
+                "bm25": bm25,
+                "documents": chunks
+            },
+            BM25_INDEX
+        )
+
+        bm25_time = time.perf_counter() - start
+
+        rag_logger.info("BM25 Index Created")
+
+        performance_logger.info("BM25 Time : %.3f sec", bm25_time)
+
+        # --------------------------------------------------------
+        # ChromaDB
+        # --------------------------------------------------------
+
+        start = time.perf_counter()
+
+        if os.path.exists(CHROMA_DB_PATH):
+
+            vector_db = Chroma(
+                persist_directory=CHROMA_DB_PATH,
+                embedding_function=embeddings
+            )
+
+            vector_db.add_documents(chunks)
+
+            vector_db.persist()
+
+            rag_logger.info("Documents Added To Existing ChromaDB")
+
+        else:
+
+            Chroma.from_documents(
+                documents=chunks,
+                embedding=embeddings,
+                persist_directory=CHROMA_DB_PATH
+            )
+
+            rag_logger.info("New ChromaDB Created")
+
+        chroma_time = time.perf_counter() - start
+
+        performance_logger.info("ChromaDB Time : %.3f sec", chroma_time)
+
+        # --------------------------------------------------------
+        # Registry
+        # --------------------------------------------------------
+
+        registry.append(
+            {
+                "name": document_name,
+                "uploaded_on": datetime.now().strftime("%d-%b-%Y %H:%M"),
+                "pages": total_pages,
+                "chunks": len(chunks),
+                "embedding_model": EMBEDDING_MODEL,
+                "vector_db": "ChromaDB",
+                "status": "Indexed"
+            }
+        )
+
+        save_registry(registry)
+
+        rag_logger.info("Document Registry Updated")
+
+        total_time = time.perf_counter() - request_start
+
+        rag_logger.info("=" * 80)
+        rag_logger.info("Knowledge Base Created Successfully")
+        performance_logger.info("Total Time : %.3f sec", total_time)
+        rag_logger.info("=" * 80)
+
+        return True
+
+    except Exception as e:
+
+        error_logger.exception(f"Knowledge Base Creation Failed {e}")
 
         return False
-
-    print(f"Loading {document_name}")
-
-    loader = PyPDFLoader(pdf_path)
-
-    documents = loader.load()
-
-    total_pages = len(documents)
-
-    print(f"Pages : {total_pages}")
-
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200
-    )
-
-    chunks = splitter.split_documents(documents)
-
-    tokenized_corpus = [
-        chunk.page_content.lower().split()
-        for chunk in chunks
-    ]
-
-    bm25 = BM25Okapi(tokenized_corpus)
-
-    joblib.dump(
-        {
-            "bm25": bm25,
-            "documents": chunks
-        },
-        BM25_INDEX
-    )
-    #Now every upload creates at "bm25/bm25_index.pkl"
-
-    print(f"Chunks : {len(chunks)}")
-
-    # -----------------------------------
-    # Store in Chroma
-    # -----------------------------------
-
-    if os.path.exists(CHROMA_DB_PATH):
-
-        vector_db = Chroma(
-            persist_directory=CHROMA_DB_PATH,
-            embedding_function=embeddings
-        )
-
-        vector_db.add_documents(chunks)
-
-        vector_db.persist()
-
-    else:
-
-        Chroma.from_documents(
-            documents=chunks,
-            embedding=embeddings,
-            persist_directory=CHROMA_DB_PATH
-        )
-
-    # -----------------------------------
-    # Register document
-    # -----------------------------------
-
-    registry.append(
-        {
-            "name": document_name,
-            "uploaded_on": datetime.now().strftime("%d-%b-%Y %H:%M"),
-            "pages": total_pages,
-            "chunks": len(chunks),
-            "embedding_model": EMBEDDING_MODEL,
-            "vector_db": "ChromaDB",
-            "status": "Indexed"
-        }
-    )
-
-    save_registry(registry)
-
-    print("Knowledge Base Updated.")
-
-    return True
-
 
 # -----------------------------------
 # Run Individually
