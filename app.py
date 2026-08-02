@@ -52,9 +52,9 @@ def load_uploaded_documents():
 
 def knowledge_base_ready():
 
-    df = load_uploaded_documents()
+    ud = load_uploaded_documents()
 
-    return not df.empty
+    return not ud.empty
 
 
 # ---------------------------------------------------
@@ -108,20 +108,36 @@ with st.sidebar:
 
     st.subheader("📚 Uploaded Documents")
 
-    df = load_uploaded_documents()
+    uploaded_documents = load_uploaded_documents()
 
-    if not df.empty:
+    if not uploaded_documents.empty:
 
         st.dataframe(
-            df,
+            uploaded_documents,
             use_container_width=True,
             hide_index=True
         )
 
-        st.success(f"Knowledge Base Ready ({len(df)} document(s))")
+        st.success(f"Knowledge Base Ready ({len(uploaded_documents)} document(s))")
+
+        selected_documents = st.sidebar.multiselect(
+
+            "Select Documents",
+
+            uploaded_documents["name"].tolist()
+
+        )
+
+        selected_category = st.sidebar.selectbox(
+            "Category",
+            ["All"] +
+            sorted(uploaded_documents["category"].unique())
+        )
+
+        if selected_category == "All":
+            selected_category = None
 
     else:
-
         st.warning("No documents uploaded.")
 
     st.divider()
@@ -197,7 +213,9 @@ if question:
 
             query_start = time.perf_counter()
             try:
-                result = ask( question, use_web_search=use_web_search )
+                result = ask( question, use_web_search=use_web_search, selected_documents=selected_documents,
+                    selected_category=selected_category )
+
             except Exception as e:
 
                 error_logger.exception(f"Application exception : {e}")
@@ -231,6 +249,10 @@ if question:
             st.write(f"**LLM :** {result['llm']}")
 
             st.write(f"**Vector Database :** {result['vector_db']}")
+
+            st.write(f"**Documents :** {result['documents']}")
+
+            st.write(f"**Chunks size :** {result['chunks']}")
 
             if result["pages"]:
 

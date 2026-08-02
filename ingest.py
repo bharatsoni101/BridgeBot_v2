@@ -109,11 +109,45 @@ def ingest_pdf(pdf_path):
 
         chunks = splitter.split_documents(documents)
 
+
+        # --------------------------------------------------------
+        # Add Metadata to Every Chunk
+        # --------------------------------------------------------
+
+        document_id = os.path.splitext(document_name)[0]
+
+        document_without_ext = os.path.splitext(document_name)[0]
+        category = document_without_ext.split("_")[0]
+
+        upload_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        file_size_mb = round(os.path.getsize(pdf_path) / (1024 * 1024), 2)
+
+        for index, chunk in enumerate(chunks):
+
+            chunk.metadata["document"] = document_name
+
+            chunk.metadata["document_id"] = document_id
+
+            chunk.metadata["category"] = category
+
+            chunk.metadata["uploaded_on"] = upload_time
+
+            chunk.metadata["chunk_id"] = index + 1
+
+            chunk.metadata["total_pages"] = total_pages
+
+            chunk.metadata["file_size_mb"] = file_size_mb
+
+            chunk.metadata["embedding_model"] = EMBEDDING_MODEL
+
+        rag_logger.info("Metadata Added To %d Chunks", len(chunks))
+
         chunk_time = time.perf_counter() - start
 
         rag_logger.info("Chunks Created : %d", len(chunks))
 
-        performance_logger.info("Chunking Time : %.3f sec", chunk_time)
+        performance_logger.info("Chunking and Metadata Time : %.3f sec", chunk_time)
 
         # --------------------------------------------------------
         # BM25 Index
@@ -182,9 +216,12 @@ def ingest_pdf(pdf_path):
         registry.append(
             {
                 "name": document_name,
-                "uploaded_on": datetime.now().strftime("%d-%b-%Y %H:%M"),
+                "document_id": document_id,
+                "category": category,
+                "uploaded_on": upload_time,
                 "pages": total_pages,
                 "chunks": len(chunks),
+                "file_size_mb": file_size_mb,
                 "embedding_model": EMBEDDING_MODEL,
                 "vector_db": "ChromaDB",
                 "status": "Indexed"
@@ -194,6 +231,9 @@ def ingest_pdf(pdf_path):
         save_registry(registry)
 
         rag_logger.info("Document Registry Updated")
+        rag_logger.info("Document ID : %s", document_id)
+        rag_logger.info("Category : %s", category)
+        rag_logger.info("File Size : %.2f MB", file_size_mb)
 
         total_time = time.perf_counter() - request_start
 
