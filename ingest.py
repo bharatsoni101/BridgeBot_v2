@@ -1,6 +1,6 @@
 import json
 import os
-import uuid
+from urllib.parse import urlparse, unquote
 from datetime import datetime
 from rank_bm25 import BM25Okapi
 import joblib
@@ -57,11 +57,13 @@ def save_registry(data):
 # Ingest PDF
 # -----------------------------------
 
-def ingest_pdf(pdf_path):
+def ingest_pdf(pdf_path, document_name=None,
+               source_type=None, source_url=None):
 
     request_start = time.perf_counter()
 
-    document_name = os.path.basename(pdf_path)
+    if document_name is None:
+        document_name = os.path.basename(pdf_path)
 
     rag_logger.info("=" * 80)
     rag_logger.info("Knowledge Base Creation Started")
@@ -133,6 +135,10 @@ def ingest_pdf(pdf_path):
             chunk.metadata["document_id"] = document_id
 
             chunk.metadata["category"] = category
+
+            chunk.metadata["source_url"] = source_url
+
+            chunk.metadata["source_type"] = source_type
 
             chunk.metadata["uploaded_on"] = upload_time
 
@@ -283,82 +289,57 @@ def ingest_github_pdf(url):
 
         rag_logger.info("Downloading PDF from GitHub...")
 
-        response = requests.get(
-            url,
-            timeout=60
-        )
+        response = requests.get(url, timeout=60)
 
         response.raise_for_status()
 
         download_time = time.perf_counter() - start
 
-        performance_logger.info(
-            "GitHub PDF Download Time : %.3f sec",
-            download_time
-        )
+        performance_logger.info("GitHub PDF Download Time : %.3f sec", download_time)
 
-        rag_logger.info(
-            "HTTP Status : %s",
-            response.status_code
-        )
+        rag_logger.info("HTTP Status : %s", response.status_code)
 
-        rag_logger.info(
-            "Downloaded Size : %.2f KB",
-            len(response.content) / 1024
-        )
+        rag_logger.info("Downloaded Size : %.2f KB", len(response.content) / 1024)
 
         # --------------------------------------------------------
         # Create Temporary File
         # --------------------------------------------------------
 
-        temp_file = os.path.join(
-            tempfile.gettempdir(),
-            f"{uuid.uuid4()}.pdf"
-        )
+        parsed_url = urlparse(url)
+
+        document_name = os.path.basename(unquote(parsed_url.path))
+
+        rag_logger.info("-------->document_name----->", document_name)
+
+        temp_file = os.path.join(tempfile.gettempdir(), document_name)
 
         with open(temp_file, "wb") as file:
 
             file.write(response.content)
 
-        rag_logger.info(
-            "Temporary PDF Created : %s",
-            temp_file
-        )
+        rag_logger.info("Temporary PDF Created : %s", temp_file)
 
         # --------------------------------------------------------
         # Prepare Knowledge Base
         # --------------------------------------------------------
 
-        rag_logger.info(
-            "Preparing Knowledge Base..."
-        )
+        rag_logger.info("Preparing Knowledge Base...")
 
         start = time.perf_counter()
 
-        status = ingest_pdf(temp_file)
+        status = ingest_pdf(temp_file, document_name, "GitHub", url)
 
         kb_time = time.perf_counter() - start
 
-        performance_logger.info(
-            "Knowledge Base Creation Time : %.3f sec",
-            kb_time
-        )
+        performance_logger.info("Knowledge Base Creation Time : %.3f sec", kb_time)
 
-        rag_logger.info(
-            "Knowledge Base Status : %s",
-            status
-        )
+        rag_logger.info("Knowledge Base Status : %s", status)
 
         total_time = time.perf_counter() - request_start
 
-        performance_logger.info(
-            "Total GitHub Ingestion Time : %.3f sec",
-            total_time
-        )
+        performance_logger.info("Total GitHub Ingestion Time : %.3f sec", total_time)
 
-        rag_logger.info(
-            "GitHub PDF Knowledge Base Creation Completed"
-        )
+        rag_logger.info("GitHub PDF Knowledge Base Creation Completed")
 
         rag_logger.info("=" * 80)
 
@@ -366,19 +347,13 @@ def ingest_github_pdf(url):
 
     except requests.exceptions.RequestException as ex:
 
-        error_logger.exception(
-            "Failed to download PDF from GitHub : %s",
-            ex
-        )
+        error_logger.exception("Failed to download PDF from GitHub : %s", ex)
 
         return False
 
     except Exception as ex:
 
-        error_logger.exception(
-            "GitHub PDF Ingestion Failed : %s",
-            ex
-        )
+        error_logger.exception("GitHub PDF Ingestion Failed : %s", ex)
 
         return False
 
@@ -390,17 +365,11 @@ def ingest_github_pdf(url):
 
                 os.remove(temp_file)
 
-                rag_logger.info(
-                    "Temporary PDF Deleted : %s",
-                    temp_file
-                )
+                rag_logger.info("Temporary PDF Deleted : %s", temp_file)
 
             except Exception as ex:
 
-                error_logger.exception(
-                    "Failed to delete temporary PDF : %s",
-                    ex
-                )
+                error_logger.exception("Failed to delete temporary PDF : %s", ex)
 
 # -----------------------------------
 # Run Individually
