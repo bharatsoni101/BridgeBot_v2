@@ -1,9 +1,8 @@
 import json
 import os
-
 import pandas as pd
 import streamlit as st
-
+from ingest import ingest_github_pdf
 from ingest import ingest_pdf
 from query import ask
 import time
@@ -103,6 +102,31 @@ with st.sidebar:
             st.success("Knowledge Base Ready!")
 
             st.rerun()
+
+    st.divider()
+
+    st.sidebar.subheader("GitHub PDF")
+
+    github_url = st.sidebar.text_input(
+        "GitHub Raw PDF URL"
+    )
+
+    if st.sidebar.button("Prepare KB From GitHub"):
+
+        if github_url.strip():
+
+            with st.spinner("Preparing Knowledge Base..."):
+
+                status = ingest_github_pdf(github_url)
+
+            if status:
+
+                st.success("Knowledge Base Created Successfully")
+
+            else:
+
+                st.error("Knowledge Base Creation Failed")
+
 
     st.divider()
 

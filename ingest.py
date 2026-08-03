@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from datetime import datetime
 from rank_bm25 import BM25Okapi
 import joblib
@@ -9,6 +10,8 @@ from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import time
+import tempfile
+import requests
 
 from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
 
@@ -249,6 +252,155 @@ def ingest_pdf(pdf_path):
         error_logger.exception(f"Knowledge Base Creation Failed {e}")
 
         return False
+
+
+# -----------------------------------
+# Ingest GitHub PDF
+# -----------------------------------
+def ingest_github_pdf(url):
+    """
+    Downloads a PDF from GitHub,
+    creates a temporary file,
+    prepares the knowledge base,
+    and deletes the temporary file.
+    """
+
+    request_start = time.perf_counter()
+
+    rag_logger.info("=" * 80)
+    rag_logger.info("GitHub PDF Knowledge Base Creation Started")
+    rag_logger.info("GitHub URL : %s", url)
+
+    temp_file = None
+
+    try:
+
+        # --------------------------------------------------------
+        # Download PDF
+        # --------------------------------------------------------
+
+        start = time.perf_counter()
+
+        rag_logger.info("Downloading PDF from GitHub...")
+
+        response = requests.get(
+            url,
+            timeout=60
+        )
+
+        response.raise_for_status()
+
+        download_time = time.perf_counter() - start
+
+        performance_logger.info(
+            "GitHub PDF Download Time : %.3f sec",
+            download_time
+        )
+
+        rag_logger.info(
+            "HTTP Status : %s",
+            response.status_code
+        )
+
+        rag_logger.info(
+            "Downloaded Size : %.2f KB",
+            len(response.content) / 1024
+        )
+
+        # --------------------------------------------------------
+        # Create Temporary File
+        # --------------------------------------------------------
+
+        temp_file = os.path.join(
+            tempfile.gettempdir(),
+            f"{uuid.uuid4()}.pdf"
+        )
+
+        with open(temp_file, "wb") as file:
+
+            file.write(response.content)
+
+        rag_logger.info(
+            "Temporary PDF Created : %s",
+            temp_file
+        )
+
+        # --------------------------------------------------------
+        # Prepare Knowledge Base
+        # --------------------------------------------------------
+
+        rag_logger.info(
+            "Preparing Knowledge Base..."
+        )
+
+        start = time.perf_counter()
+
+        status = ingest_pdf(temp_file)
+
+        kb_time = time.perf_counter() - start
+
+        performance_logger.info(
+            "Knowledge Base Creation Time : %.3f sec",
+            kb_time
+        )
+
+        rag_logger.info(
+            "Knowledge Base Status : %s",
+            status
+        )
+
+        total_time = time.perf_counter() - request_start
+
+        performance_logger.info(
+            "Total GitHub Ingestion Time : %.3f sec",
+            total_time
+        )
+
+        rag_logger.info(
+            "GitHub PDF Knowledge Base Creation Completed"
+        )
+
+        rag_logger.info("=" * 80)
+
+        return status
+
+    except requests.exceptions.RequestException as ex:
+
+        error_logger.exception(
+            "Failed to download PDF from GitHub : %s",
+            ex
+        )
+
+        return False
+
+    except Exception as ex:
+
+        error_logger.exception(
+            "GitHub PDF Ingestion Failed : %s",
+            ex
+        )
+
+        return False
+
+    finally:
+
+        if temp_file and os.path.exists(temp_file):
+
+            try:
+
+                os.remove(temp_file)
+
+                rag_logger.info(
+                    "Temporary PDF Deleted : %s",
+                    temp_file
+                )
+
+            except Exception as ex:
+
+                error_logger.exception(
+                    "Failed to delete temporary PDF : %s",
+                    ex
+                )
 
 # -----------------------------------
 # Run Individually
