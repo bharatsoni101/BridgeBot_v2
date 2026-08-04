@@ -12,6 +12,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import time
 import tempfile
 import requests
+import re
 
 from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
 
@@ -370,6 +371,150 @@ def ingest_github_pdf(url):
             except Exception as ex:
 
                 error_logger.exception("Failed to delete temporary PDF : %s", ex)
+
+# -----------------------------------
+# Ingest Google drive PDF
+# -----------------------------------
+
+def ingest_google_drive_pdf(drive_url):
+
+    request_start = time.perf_counter()
+
+    rag_logger.info("=" * 80)
+    rag_logger.info("Google Drive PDF Knowledge Base Creation Started")
+    rag_logger.info("Drive URL : %s", drive_url)
+
+    temp_file = None
+
+    try:
+
+        # ------------------------------------------
+        # Extract File ID
+        # ------------------------------------------
+
+        file_id = extract_drive_file_id(drive_url)
+
+        if not file_id:
+
+            rag_logger.error("Invalid Google Drive URL")
+
+            return False
+
+        rag_logger.info("File ID : %s", file_id)
+
+        download_url = get_drive_download_url(file_id)
+
+        rag_logger.info("Download URL Generated")
+
+        # ------------------------------------------
+        # Download PDF
+        # ------------------------------------------
+
+        start = time.perf_counter()
+
+        response = requests.get(download_url, timeout=120)
+
+        response.raise_for_status()
+
+        performance_logger.info("Google Drive Download Time : %.3f sec", time.perf_counter() - start)
+
+        content_type = response.headers.get("Content-Type", "")
+
+        rag_logger.info("Content-Type : %s", content_type)
+
+        if not response.content.startswith(b"%PDF-"):
+
+            error_logger.error("Downloaded file is not a valid PDF.")
+
+            return False
+
+        # ------------------------------------------
+        # Original Filename
+        # ------------------------------------------
+
+        document_name = f"{file_id}.pdf"
+
+        disposition = response.headers.get("Content-Disposition", "")
+
+        if "filename=" in disposition:
+
+            document_name = (disposition.split("filename=")[-1].replace('"', ''))
+
+        rag_logger.info("Document Name : %s", document_name)
+
+        # ------------------------------------------
+        # Temporary File
+        # ------------------------------------------
+
+        temp_file = os.path.join(tempfile.gettempdir(), document_name)
+
+        with open(temp_file, "wb") as f:
+
+            f.write(response.content)
+
+        rag_logger.info("Temporary PDF Created")
+
+        # ------------------------------------------
+        # Prepare Knowledge Base
+        # ------------------------------------------
+
+        status = ingest_pdf(temp_file, document_name, "Google Drive", drive_url)
+
+        performance_logger.info("Total Google Drive Ingestion : %.3f sec", time.perf_counter() - request_start)
+
+        rag_logger.info("Google Drive Knowledge Base Completed")
+
+        return status
+
+    except Exception:
+
+        error_logger.exception("Google Drive Ingestion Failed")
+
+        return False
+
+    finally:
+
+        if temp_file and os.path.exists(temp_file):
+
+            try:
+
+                os.remove(temp_file)
+
+                rag_logger.info("Temporary PDF Deleted")
+
+            except Exception:
+
+                error_logger.exception("Unable to delete temp file")
+
+def extract_drive_file_id(drive_url):
+    """
+    Extract Google Drive File ID from a public sharing URL.
+    """
+
+    patterns = [
+        r"/file/d/([a-zA-Z0-9_-]+)",
+        r"id=([a-zA-Z0-9_-]+)"
+    ]
+
+    for pattern in patterns:
+
+        match = re.search(pattern, drive_url)
+
+        if match:
+            return match.group(1)
+
+    return None
+
+def get_drive_download_url(file_id):
+    """
+    Build Google Drive direct download URL.
+    """
+
+    return (
+        f"https://drive.google.com/uc?export=download&id={file_id}"
+    )
+
+
 
 # -----------------------------------
 # Run Individually

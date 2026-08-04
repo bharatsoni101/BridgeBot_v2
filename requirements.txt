@@ -64,3 +64,14 @@ joblib==1.5.1
 # Cross-Encoder
 # ----------------------------
 sentence-transformers==5.1.0
+
+# ----------------------------
+# password encription
+# ----------------------------
+bcrypt==4.2.0
+
+
+
+#---Test Github URL-------------
+# https://raw.githubusercontent.com/ram-ginnare/BridgeBot/main/source/Movie_Dharam%20Veer.pdf
+#-------------------------------

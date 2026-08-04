@@ -3,11 +3,51 @@ import os
 import pandas as pd
 import streamlit as st
 from ingest import ingest_github_pdf
+from ingest import ingest_google_drive_pdf
 from ingest import ingest_pdf
 from query import ask
 import time
 from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
+#login
+from auth.login import login_page
+from auth.session import (is_logged_in, logout)
 
+st.set_page_config(
+    page_title="BridgeBot",
+    layout="wide"
+)
+
+# -------------------------------
+# Authentication
+# -------------------------------
+
+if not is_logged_in():
+
+    login_page()
+
+    st.stop()
+
+# -------------------------------
+# Logged-in User
+# -------------------------------
+
+st.sidebar.success(
+    f"👤 {st.session_state.user}"
+)
+
+st.sidebar.write(
+    f"Role : {st.session_state.role}"
+)
+
+st.sidebar.divider()
+
+if st.sidebar.button("🚪 Logout"):
+
+    logout()
+
+    st.rerun()
+
+st.sidebar.divider()
 
 # ---------------------------------------------------
 # Configuration
@@ -118,6 +158,31 @@ with st.sidebar:
             with st.spinner("Preparing Knowledge Base..."):
 
                 status = ingest_github_pdf(github_url)
+
+            if status:
+
+                st.success("Knowledge Base Created Successfully")
+
+            else:
+
+                st.error("Knowledge Base Creation Failed")
+
+
+    st.divider()
+
+    st.sidebar.subheader("Google Drive PDF")
+
+    drive_url = st.sidebar.text_input(
+        "Public Google Drive PDF URL"
+    )
+
+    if st.sidebar.button("Prepare KB From Google Drive"):
+
+        if drive_url.strip():
+
+            with st.spinner("Preparing Knowledge Base..."):
+
+                status = ingest_google_drive_pdf(drive_url)
 
             if status:
 
