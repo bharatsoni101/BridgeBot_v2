@@ -11,7 +11,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from models.document_metadata import create_document_metadata
+#from models.document_metadata import create_document_metadata
 import time
 import tempfile
 import requests
@@ -139,14 +139,14 @@ def ingest_pdf(pdf_path,
 
         file_size_mb = round(os.path.getsize(pdf_path) / (1024 * 1024), 2)
 
-        doc_metadata = create_document_metadata(
-            document_name=document_name,
-            owner=st.session_state.user,
-            department="AI",
-            team="BridgeBot",
-            visibility="Private",
-            source_type="Local"
-        )
+        # doc_metadata = create_document_metadata(
+        #     document_name=document_name,
+        #     owner=st.session_state.user,
+        #     department="AI",
+        #     team="BridgeBot",
+        #     visibility="Private",
+        #     source_type="Local"
+        # )
 
         for index, chunk in enumerate(chunks):
 
