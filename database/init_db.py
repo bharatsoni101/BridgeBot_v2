@@ -16,7 +16,7 @@ cursor.execute("""
                        role TEXT,
                        status INTEGER,
                        created_date TEXT,
-                       last_login TEXT
+                       last_login TEXT,
                        department TEXT,
                        team TEXT
                )
@@ -30,7 +30,7 @@ password = bcrypt.hashpw(
 # 1. Admin
 cursor.execute(
     """
-    INSERT OR IGNORE INTO main.users 
+    INSERT OR IGNORE INTO users 
     (id, username, password_hash, email, role, status, created_date, last_login, department, team) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
@@ -51,7 +51,7 @@ cursor.execute(
 # 2. Ram
 cursor.execute(
     """
-    INSERT OR IGNORE INTO main.users 
+    INSERT OR IGNORE INTO users 
     (id, username, password_hash, email, role, status, created_date, last_login, department, team) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
@@ -72,7 +72,7 @@ cursor.execute(
 # 3. Rakesh
 cursor.execute(
     """
-    INSERT OR IGNORE INTO main.users 
+    INSERT OR IGNORE INTO users 
     (id, username, password_hash, email, role, status, created_date, last_login, department, team) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
@@ -93,7 +93,7 @@ cursor.execute(
 # 4. Bharat
 cursor.execute(
     """
-    INSERT OR IGNORE INTO main.users 
+    INSERT OR IGNORE INTO users 
     (id, username, password_hash, email, role, status, created_date, last_login, department, team) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
