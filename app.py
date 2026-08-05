@@ -131,7 +131,13 @@ with st.sidebar:
 
                 start = time.perf_counter()
 
-                status = ingest_pdf(pdf_path)
+                owner = st.session_state.user
+                department = st.session_state.department
+                team = st.session_state.team
+                # TODO:  take visibility from UI in dropdown
+                visibility = "Private"
+
+                status = ingest_pdf(pdf_path,owner=owner, department=department, team=team, visibility=visibility)
 
                 elapsed = time.perf_counter() - start
 
@@ -213,7 +219,7 @@ with st.sidebar:
 
             "Select Documents",
 
-            uploaded_documents["name"].tolist()
+            uploaded_documents["document_name"].tolist()
 
         )
 

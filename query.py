@@ -1,5 +1,5 @@
 import os
-
+import streamlit as st
 from dotenv import load_dotenv
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_community.vectorstores import Chroma
@@ -113,6 +113,12 @@ def ask(
         pages = set()
 
         documents = set()
+
+        rag_logger.info("\n\n=====start=========docs===============\n\n")
+
+        rag_logger.info(docs)
+
+        rag_logger.info("\n\n=====end=========docs===============\n\n")
 
         for doc in docs:
 
@@ -349,6 +355,17 @@ def hybrid_search(
         conditions.append({
             "category": selected_category
         })
+
+    if st.session_state.department:
+        conditions.append({
+            "department": st.session_state.department
+        })
+
+    #TODO: update visibility condition
+    # if visibility:
+    #     conditions.append({
+    #         "visibility": visibility
+    #     })
 
     if len(conditions) == 1:
         metadata_filter = conditions[0]

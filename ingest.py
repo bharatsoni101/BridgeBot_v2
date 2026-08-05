@@ -1,5 +1,7 @@
 import json
+import uuid
 import os
+import streamlit as st
 from urllib.parse import urlparse, unquote
 from datetime import datetime
 from rank_bm25 import BM25Okapi
@@ -9,6 +11,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from models.document_metadata import create_document_metadata
 import time
 import tempfile
 import requests
@@ -58,8 +61,14 @@ def save_registry(data):
 # Ingest PDF
 # -----------------------------------
 
-def ingest_pdf(pdf_path, document_name=None,
-               source_type=None, source_url=None):
+def ingest_pdf(pdf_path,
+               document_name=None,
+               source_type=None,
+               source_url=None,
+               owner=None,
+               department=None,
+               team=None,
+               visibility="Private"):
 
     request_start = time.perf_counter()
 
@@ -120,7 +129,8 @@ def ingest_pdf(pdf_path, document_name=None,
         # Add Metadata to Every Chunk
         # --------------------------------------------------------
 
-        document_id = os.path.splitext(document_name)[0]
+        #document_id = os.path.splitext(document_name)[0]
+        document_id = str(uuid.uuid4())
 
         document_without_ext = os.path.splitext(document_name)[0]
         category = document_without_ext.split("_")[0]
@@ -129,11 +139,30 @@ def ingest_pdf(pdf_path, document_name=None,
 
         file_size_mb = round(os.path.getsize(pdf_path) / (1024 * 1024), 2)
 
+        doc_metadata = create_document_metadata(
+            document_name=document_name,
+            owner=st.session_state.user,
+            department="AI",
+            team="BridgeBot",
+            visibility="Private",
+            source_type="Local"
+        )
+
         for index, chunk in enumerate(chunks):
+
+            chunk.metadata["document_id"] = document_id
 
             chunk.metadata["document"] = document_name
 
-            chunk.metadata["document_id"] = document_id
+            chunk.metadata["owner"] = owner
+
+            chunk.metadata["department"] = department
+
+            chunk.metadata["team"] = team
+
+            chunk.metadata["visibility"] = visibility
+
+            chunk.metadata["uploaded_by"] = owner
 
             chunk.metadata["category"] = category
 
@@ -141,7 +170,7 @@ def ingest_pdf(pdf_path, document_name=None,
 
             chunk.metadata["source_type"] = source_type
 
-            chunk.metadata["uploaded_on"] = upload_time
+            chunk.metadata["uploaded_date"] = upload_time
 
             chunk.metadata["chunk_id"] = index + 1
 
@@ -225,10 +254,17 @@ def ingest_pdf(pdf_path, document_name=None,
 
         registry.append(
             {
-                "name": document_name,
                 "document_id": document_id,
+                "document_name": document_name,
+                "owner": owner,
+                "department": department,
+                "team": team,
+                "visibility": visibility,
+                "uploaded_by": owner,
+                "uploaded_date": upload_time,
+                "source_type": source_type,
+                "source_url": source_url,
                 "category": category,
-                "uploaded_on": upload_time,
                 "pages": total_pages,
                 "chunks": len(chunks),
                 "file_size_mb": file_size_mb,
@@ -328,7 +364,17 @@ def ingest_github_pdf(url):
 
         start = time.perf_counter()
 
-        status = ingest_pdf(temp_file, document_name, "GitHub", url)
+        owner = st.session_state.user
+        department = st.session_state.department
+        team = st.session_state.team
+        # TODO get from UI dd
+        visibility = "Private"
+
+        status = ingest_pdf(temp_file, document_name, "GitHub", url,
+                            owner=owner,
+                            department=department,
+                            team=team,
+                            visibility=visibility)
 
         kb_time = time.perf_counter() - start
 
@@ -458,7 +504,16 @@ def ingest_google_drive_pdf(drive_url):
         # Prepare Knowledge Base
         # ------------------------------------------
 
-        status = ingest_pdf(temp_file, document_name, "Google Drive", drive_url)
+        owner = st.session_state.user
+        department = st.session_state.department
+        team = st.session_state.team
+        # TODO get from UI dd
+        visibility = "Private"
+
+        status = ingest_pdf(temp_file, document_name, "Google Drive", drive_url, owner=owner,
+                            department=department,
+                            team=team,
+                            visibility=visibility)
 
         performance_logger.info("Total Google Drive Ingestion : %.3f sec", time.perf_counter() - request_start)
 

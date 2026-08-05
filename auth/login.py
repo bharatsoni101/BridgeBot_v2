@@ -17,6 +17,11 @@ def login_page():
 
             st.success("Login Successful")
 
+            st.session_state.user = user["username"]
+            st.session_state.role = user["role"]
+            st.session_state.department = user["department"]
+            st.session_state.team = user["team"]
+
             st.rerun()
 
         else:
