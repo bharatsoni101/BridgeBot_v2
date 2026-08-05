@@ -15,10 +15,10 @@ cursor.execute("""
                        email TEXT,
                        role TEXT,
                        status INTEGER,
-                       department TEXT,
-                       team TEXT,
                        created_date TEXT,
                        last_login TEXT
+                       department TEXT,
+                       team TEXT
                )
                """)
 
