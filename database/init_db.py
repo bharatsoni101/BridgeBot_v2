@@ -33,6 +33,31 @@ VALUES ( ?, ?, ?, ?, ?, datetime('now') )
                ("admin", password, "admin@bridgebot.com", "ADMIN", 1)
                )
 
+cursor.execute("""
+               INSERT OR IGNORE INTO users
+( username, password_hash, email, role, status, created_date )
+VALUES ( ?, ?, ?, ?, ?, datetime('now') )
+               """,
+               ("ram", password, "admin@bridgebot.com", "EDITOR", 1)
+               )
+
+
+cursor.execute("""
+               INSERT OR IGNORE INTO users
+( username, password_hash, email, role, status, created_date )
+VALUES ( ?, ?, ?, ?, ?, datetime('now') )
+               """,
+               ("rakesh", password, "admin@bridgebot.com", "VIEWER", 1)
+               )
+
+cursor.execute("""
+               INSERT OR IGNORE INTO users
+( username, password_hash, email, role, status, created_date )
+VALUES ( ?, ?, ?, ?, ?, datetime('now') )
+               """,
+               ("bharat", password, "admin@bridgebot.com", "VIEWER", 1)
+               )
+
 conn.commit()
 
 conn.close()
