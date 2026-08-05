@@ -15,6 +15,8 @@ cursor.execute("""
                        email TEXT,
                        role TEXT,
                        status INTEGER,
+                       department TEXT,
+                       team TEXT,
                        created_date TEXT,
                        last_login TEXT
                )
@@ -25,38 +27,89 @@ password = bcrypt.hashpw(
     bcrypt.gensalt()
 ).decode()
 
-cursor.execute("""
-               INSERT OR IGNORE INTO users
-( username, password_hash, email, role, status, created_date )
-VALUES ( ?, ?, ?, ?, ?, datetime('now') )
-               """,
-               ("admin", password, "admin@bridgebot.com", "ADMIN", 1)
-               )
+# 1. Admin
+cursor.execute(
+    """
+    INSERT OR IGNORE INTO main.users 
+    (id, username, password_hash, email, role, status, created_date, last_login, department, team) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+    (
+        1,
+        "admin",
+        password,
+        "admin@bridgebot.com",
+        "ADMIN",
+        1,
+        "2026-08-04 04:13:20",
+        None,
+        "AI",
+        "BridgeBot",
+    ),
+)
 
-cursor.execute("""
-               INSERT OR IGNORE INTO users
-( username, password_hash, email, role, status, created_date )
-VALUES ( ?, ?, ?, ?, ?, datetime('now') )
-               """,
-               ("ram", password, "admin@bridgebot.com", "EDITOR", 1)
-               )
+# 2. Ram
+cursor.execute(
+    """
+    INSERT OR IGNORE INTO main.users 
+    (id, username, password_hash, email, role, status, created_date, last_login, department, team) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+    (
+        2,
+        "ram",
+        password,
+        "ram@bridgebot.com",
+        "EDITOR",
+        1,
+        "2026-08-05 03:16:24",
+        None,
+        "AI",
+        "BridgeBot",
+    ),
+)
 
+# 3. Rakesh
+cursor.execute(
+    """
+    INSERT OR IGNORE INTO main.users 
+    (id, username, password_hash, email, role, status, created_date, last_login, department, team) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+    (
+        3,
+        "rakesh",
+        password,
+        "rakesh@bridgebot.com",
+        "VIEWER",
+        1,
+        "2026-08-05 03:16:24",
+        None,
+        "AI",
+        "BridgeBot_DB",
+    ),
+)
 
-cursor.execute("""
-               INSERT OR IGNORE INTO users
-( username, password_hash, email, role, status, created_date )
-VALUES ( ?, ?, ?, ?, ?, datetime('now') )
-               """,
-               ("rakesh", password, "admin@bridgebot.com", "VIEWER", 1)
-               )
-
-cursor.execute("""
-               INSERT OR IGNORE INTO users
-( username, password_hash, email, role, status, created_date )
-VALUES ( ?, ?, ?, ?, ?, datetime('now') )
-               """,
-               ("bharat", password, "admin@bridgebot.com", "VIEWER", 1)
-               )
+# 4. Bharat
+cursor.execute(
+    """
+    INSERT OR IGNORE INTO main.users 
+    (id, username, password_hash, email, role, status, created_date, last_login, department, team) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+    (
+        4,
+        "bharat",
+        password,
+        "bharat@bridgebot.com",
+        "VIEWER",
+        1,
+        "2026-08-05 03:16:24",
+        None,
+        "AI",
+        "AIML",
+    ),
+)
 
 conn.commit()
 
