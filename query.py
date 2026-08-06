@@ -68,7 +68,11 @@ def ask(
         question,
         use_web_search=False,
         selected_documents=None,
-        selected_category=None
+        selected_category=None,
+        owner=None,
+        department=None,
+        team=None,
+        visibility="Private"
 ):
 
     request_start = time.perf_counter()
@@ -89,7 +93,11 @@ def ask(
         docs = hybrid_search(
             question=question,
             selected_documents=selected_documents,
-            selected_category=selected_category
+            selected_category=selected_category,
+            owner=owner,
+            department=department,
+            team=team,
+            visibility=visibility
         )
 
         performance_logger.info("Hybrid Search returned %d chunks in %.3f sec", len(docs), time.perf_counter() - start)
@@ -175,7 +183,7 @@ def ask(
 
         if context.strip() == "":
 
-            logger.warning("No Context Found")
+            rag_logger.warning("No Context Found")
 
             return {
 
@@ -191,7 +199,7 @@ def ask(
 
                 "chunks": 0,
 
-                "metadata_filter": metadata_filter,
+                "metadata_filter": st.session_state.metadata_filter,
 
                 "web_used": use_web_search,
 
@@ -304,7 +312,13 @@ Answer
 
         }
 
-def bm25_search(question, k=5):
+def bm25_search(question, k=5,
+                selected_documents=None,
+                selected_category=None,
+                owner=None,
+                department=None,
+                team=None,
+                visibility=None):
 
     rag_logger.info("BM25 Search Started")
 
@@ -317,11 +331,49 @@ def bm25_search(question, k=5):
 
     docs = index["documents"]
 
-    query = question.lower().split()
+    filtered_documents = []
+    filtered_tokens = []
 
-    scores = bm25.get_scores(query)
+    for doc in docs:
+        metadata = doc.metadata
+        if selected_documents:
 
-    ranked = sorted(zip(scores, docs), reverse=True, key=lambda x: x[0])
+            if metadata["document_name"] not in selected_documents:
+                continue
+
+        if selected_category:
+
+            if metadata["category"] != selected_category:
+                continue
+
+        if owner:
+
+            if metadata["owner"] != owner:
+                continue
+
+        if department:
+
+            if metadata["department"] != department:
+                continue
+
+        if team:
+
+            if metadata["team"] != team:
+                continue
+
+        if visibility:
+
+            if metadata["visibility"] != visibility:
+                continue
+
+        filtered_documents.append(doc)
+        filtered_tokens.append(doc.page_content.lower().split())
+
+    #bm25 = BM25Okapi(filtered_tokens)
+
+    scores = bm25.get_scores(question.lower().split())
+
+    ranked = sorted(zip(scores, filtered_documents), key=lambda x: x[0], reverse=True)
 
     rag_logger.info("BM25 returned %d chunks", min(k, len(ranked)))
 
@@ -331,7 +383,11 @@ def bm25_search(question, k=5):
 def hybrid_search(
         question,
         selected_documents=None,
-        selected_category=None
+        selected_category=None,
+        owner=None,
+        department=None,
+        team=None,
+        visibility=None
 ):
 
     rag_logger.info("Hybrid Search Started")
@@ -361,6 +417,11 @@ def hybrid_search(
             "department": st.session_state.department
         })
 
+    if st.session_state.user:
+        conditions.append({
+            "uploaded_by": st.session_state.user
+        })
+
     #TODO: update visibility condition
     # if visibility:
     #     conditions.append({
@@ -376,7 +437,7 @@ def hybrid_search(
         }
 
     rag_logger.info("Metadata Filter : %s", metadata_filter)
-
+    st.session_state.metadata_filter = metadata_filter
 
     if metadata_filter:
         dense_docs = vector_db.similarity_search(question, k=5, filter=metadata_filter)
@@ -385,7 +446,16 @@ def hybrid_search(
 
     rag_logger.info("Dense Search : %d chunks", len(dense_docs))
 
-    sparse_docs = bm25_search(question, k=20)
+    sparse_docs = bm25_search(
+        question,
+        k=20,
+        selected_documents=selected_documents,
+        selected_category=selected_category,
+        owner=owner,
+        department=department,
+        team=team,
+        visibility=visibility
+    )
 
     if selected_documents:
         sparse_docs = [doc for doc in sparse_docs if doc.metadata.get("document") in selected_documents]

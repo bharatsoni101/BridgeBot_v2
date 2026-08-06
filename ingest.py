@@ -152,7 +152,7 @@ def ingest_pdf(pdf_path,
 
             chunk.metadata["document_id"] = document_id
 
-            chunk.metadata["document"] = document_name
+            chunk.metadata["document_name"] = document_name
 
             chunk.metadata["owner"] = owner
 
