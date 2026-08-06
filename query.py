@@ -136,7 +136,7 @@ def ask(
                 doc.metadata.get("page", "Unknown")
             )
 
-            source = doc.metadata.get("document_id", "")
+            source = doc.metadata.get("document_name", "")
 
             if source:
                 documents.add(
@@ -402,7 +402,7 @@ def hybrid_search(
 
     if selected_documents:
         conditions.append({
-            "document": {
+            "document_name": {
                 "$in": selected_documents
             }
         })
@@ -458,7 +458,7 @@ def hybrid_search(
     )
 
     if selected_documents:
-        sparse_docs = [doc for doc in sparse_docs if doc.metadata.get("document") in selected_documents]
+        sparse_docs = [doc for doc in sparse_docs if doc.metadata.get("document_name") in selected_documents]
 
     if selected_category:
         sparse_docs = [doc for doc in sparse_docs if doc.metadata.get("category") == selected_category]
