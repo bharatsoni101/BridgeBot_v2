@@ -87,7 +87,7 @@ def ingest_pdf(pdf_path,
         # Duplicate Check
         # --------------------------------------------------------
 
-        if any(doc["name"] == document_name for doc in registry):
+        if any(doc["document_name"] == document_name for doc in registry):
 
             logger.warning("Duplicate document detected : %s", document_name)
 

@@ -10,7 +10,7 @@ import joblib
 from reranker import rerank
 import time
 from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
-
+from utils.constants import RERANKER_SCORE_THRESHOLD
 load_dotenv()
 
 
@@ -338,44 +338,69 @@ def bm25_search(question, k=5,
         metadata = doc.metadata
         if selected_documents:
 
-            if metadata["document_name"] not in selected_documents:
+            if metadata.get("document_name") not in selected_documents:
                 continue
 
         if selected_category:
 
-            if metadata["category"] != selected_category:
+            if metadata.get("category") != selected_category:
                 continue
 
         if owner:
 
-            if metadata["owner"] != owner:
+            if metadata.get("owner") != owner:
                 continue
 
         if department:
 
-            if metadata["department"] != department:
+            if metadata.get("department") != department:
                 continue
 
         if team:
 
-            if metadata["team"] != team:
+            if metadata.get("team") != team:
                 continue
 
         if visibility:
 
-            if metadata["visibility"] != visibility:
+            if metadata.get("visibility") != visibility:
                 continue
 
         filtered_documents.append(doc)
         filtered_tokens.append(doc.page_content.lower().split())
 
-    #bm25 = BM25Okapi(filtered_tokens)
+    bm25 = BM25Okapi(filtered_tokens)
 
-    scores = bm25.get_scores(question.lower().split())
+    # ------------------------------------------
+    # BM25 Search : code for return docs only with score > 0.10
+    # ------------------------------------------
 
-    ranked = sorted(zip(scores, filtered_documents), key=lambda x: x[0], reverse=True)
+    query_tokens = question.lower().split()
 
-    rag_logger.info("BM25 returned %d chunks", min(k, len(ranked)))
+    scores = bm25.get_scores(query_tokens)
+
+    # Keep only documents with positive scores
+    ranked = sorted(
+        [
+            (score, doc)
+            for score, doc in zip(scores, filtered_documents)
+            if score >= RERANKER_SCORE_THRESHOLD
+        ],
+        key=lambda x: x[0],
+        reverse=True
+    )
+
+    rag_logger.info("BM25 Retrieved %d relevant documents (score > 0)", len(ranked))
+
+    # Log individual scores (optional)
+    for score, doc in ranked:
+
+        rag_logger.debug(
+            "BM25 Score: %.4f | Document: %s | Page: %s",
+            score,
+            doc.metadata.get("document_name"),
+            doc.metadata.get("page")
+        )
 
     return [doc for score, doc in ranked[:k]]
 

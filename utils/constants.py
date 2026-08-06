@@ -1,0 +1,16 @@
+# VISIBILITY
+VISIBILITY_PRIVATE = "Private"
+VISIBILITY_TEAM = "Team"
+VISIBILITY_DEPARTMENT = "Department"
+VISIBILITY_PUBLIC = "Public"
+
+#  SOURCE
+SOURCE_LOCAL = "Local"
+SOURCE_GITHUB = "GitHub"
+SOURCE_GOOGLE_DRIVE = "Google Drive"
+# SOURCE_SHAREPOINT = "SharePoint"
+# SOURCE_CONFLUENCE = "Confluence"
+
+
+# Minimum CrossEncoder score required
+RERANKER_SCORE_THRESHOLD = 0.10
