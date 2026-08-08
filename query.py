@@ -10,7 +10,7 @@ import joblib
 from reranker import rerank
 import time
 from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
-from utils.constants import RERANKER_SCORE_THRESHOLD
+
 load_dotenv()
 
 
@@ -379,16 +379,7 @@ def bm25_search(question, k=5,
 
     scores = bm25.get_scores(query_tokens)
 
-    # Keep only documents with positive scores
-    ranked = sorted(
-        [
-            (score, doc)
-            for score, doc in zip(scores, filtered_documents)
-            if score >= RERANKER_SCORE_THRESHOLD
-        ],
-        key=lambda x: x[0],
-        reverse=True
-    )
+    ranked = sorted(zip(scores, filtered_documents), key=lambda x: x[0], reverse=True)
 
     rag_logger.info("BM25 Retrieved %d relevant documents (score > 0)", len(ranked))
 

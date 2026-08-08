@@ -12,5 +12,3 @@ SOURCE_GOOGLE_DRIVE = "Google Drive"
 # SOURCE_CONFLUENCE = "Confluence"
 
 
-# Minimum CrossEncoder score required
-RERANKER_SCORE_THRESHOLD = 0.10

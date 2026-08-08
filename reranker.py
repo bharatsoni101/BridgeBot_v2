@@ -1,7 +1,7 @@
 import time
 
 from sentence_transformers import CrossEncoder
-from utils.constants import RERANKER_SCORE_THRESHOLD
+
 from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
 
 # --------------------------------------------------------
@@ -23,7 +23,6 @@ rag_logger.info("CrossEncoder Loaded Successfully")
 # --------------------------------------------------------
 # Rerank
 # --------------------------------------------------------
-
 
 def rerank(question, documents, top_k=3):
     """
@@ -90,60 +89,14 @@ def rerank(question, documents, top_k=3):
             reverse=True
         )
 
-        rag_logger.info("CrossEncoder Ranked %d chunks", len(ranked))
-
-        # --------------------------------------------------------
-        # Filter by Score Threshold
-        # --------------------------------------------------------
-
-        filtered = []
-
-        for score, doc in ranked:
-
-            if float(score) >= RERANKER_SCORE_THRESHOLD:
-
-                filtered.append((float(score), doc))
-
-        rag_logger.info("Chunks After Threshold (>= %.2f) : %d", RERANKER_SCORE_THRESHOLD, len(filtered))
-
-        # --------------------------------------------------------
-        # Log Every Selected Chunk
-        # --------------------------------------------------------
-
-        for score, doc in filtered:
-
-            rag_logger.info(
-                "Score : %.4f | Document : %s | Page : %s | Chunk : %s",
-                score,
-                doc.metadata.get("document_name"),
-                doc.metadata.get("page"),
-                doc.metadata.get("chunk_id")
-            )
-
-        # --------------------------------------------------------
-        # No Relevant Chunks
-        # --------------------------------------------------------
-
-        if len(filtered) == 0:
-
-            rag_logger.warning(
-                "No chunks passed the reranker threshold."
-            )
-
-            return [], []
-
-        # --------------------------------------------------------
-        # Return Top K
-        # --------------------------------------------------------
-
         reranked_docs = [
             doc
-            for score, doc in filtered[:top_k]
+            for score, doc in ranked[:top_k]
         ]
 
         reranked_scores = [
-            score
-            for score, doc in filtered[:top_k]
+            float(score)
+            for score, doc in ranked[:top_k]
         ]
 
         # --------------------------------------------------------
