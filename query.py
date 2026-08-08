@@ -11,7 +11,7 @@ from reranker import rerank
 import time
 from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 # ------------------------------------
@@ -53,12 +53,6 @@ llm = ChatGroq(
     model=LLM_MODEL,
     temperature=0
 )
-
-# ------------------------------------
-# DuckDuckGo Search
-# ------------------------------------
-
-search = DDGS()
 
 # ------------------------------------
 # Ask Question
