@@ -163,7 +163,7 @@ def ask(
 
                 rag_logger.info("DuckDuckGo Search Started")
 
-                results = list(ddgs.text("Prime Minister Narendra Modi", max_results=1))
+                results = list(ddgs.text(question, max_results=1))
 
                 web_context = results[0]
 
