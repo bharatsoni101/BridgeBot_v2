@@ -1,0 +1,6 @@
+/.idea/
+/.venv/
+/data/
+/chroma_db/
+/bm25/
+.env
