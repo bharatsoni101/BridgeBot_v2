@@ -3,4 +3,5 @@
 /data/
 /chroma_db/
 /bm25/
+/logs/
 .env
