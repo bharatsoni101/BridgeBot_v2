@@ -1,7 +1,12 @@
-from langchain_community.tools import DuckDuckGoSearchRun
+from ddgs import DDGS
 
-search = DuckDuckGoSearchRun()
+with DDGS() as ddgs:
+    results = list(
+        ddgs.text(
+            "Prime Minister Narendra Modi",
+            max_results=5
+        )
+    )
 
-web_context = search.run("Who is PM Modi?")
-
-print(web_context)
+for result in results:
+    print(result)

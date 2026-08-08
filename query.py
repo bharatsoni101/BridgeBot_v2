@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 from dotenv import load_dotenv
-from langchain_community.tools import DuckDuckGoSearchRun
+from ddgs import DDGS
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
@@ -58,7 +58,7 @@ llm = ChatGroq(
 # DuckDuckGo Search
 # ------------------------------------
 
-search = DuckDuckGoSearchRun()
+search = DDGS()
 
 # ------------------------------------
 # Ask Question
@@ -163,7 +163,9 @@ def ask(
 
                 rag_logger.info("DuckDuckGo Search Started")
 
-                web_context = search.run(question)
+                results = list(ddgs.text("Prime Minister Narendra Modi", max_results=1))
+
+                web_context = results[0]
 
                 performance_logger.info("Web Search completed in %.3f sec", time.perf_counter() - start)
 
