@@ -163,9 +163,9 @@ def ask(
 
                 rag_logger.info("DuckDuckGo Search Started")
 
-                results = list(ddgs.text(question, max_results=1))
-
-                web_context = results[0]
+                with DDGS() as ddgs:
+                    web_results = list(ddgs.text(question, max_results=1))
+                    web_context = web_results[0]["body"]
 
                 performance_logger.info("Web Search completed in %.3f sec", time.perf_counter() - start)
 
