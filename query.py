@@ -66,10 +66,25 @@ def ask(
         owner=None,
         department=None,
         team=None,
-        visibility="Private"
+        visibility="Private",
+        source="KB"
 ):
 
     request_start = time.perf_counter()
+
+    source = source.upper()
+    rag_logger.info("Query Source : %s", source)
+
+    # change use_web_search value on the basis of source(WEB/KB/KB_WEB)
+    if source == "WEB":
+        use_web_search = True
+    elif source == "KB":
+        use_web_search = False
+    elif source == "KB_WEB":
+        use_web_search = True
+    else:
+        source = "KB"
+        use_web_search = False
 
     rag_logger.info("=" * 80)
     rag_logger.info("New Query")
@@ -81,34 +96,42 @@ def ask(
         # ---------------------------------------------------
         # Hybrid Search
         # ---------------------------------------------------
+        docs = []
 
-        start = time.perf_counter()
+        if source in ("KB", "KB_WEB"):
+            start = time.perf_counter()
 
-        docs = hybrid_search(
-            question=question,
-            selected_documents=selected_documents,
-            selected_category=selected_category,
-            owner=owner,
-            department=department,
-            team=team,
-            visibility=visibility
-        )
+            docs = hybrid_search(
+                question=question,
+                selected_documents=selected_documents,
+                selected_category=selected_category,
+                owner=owner,
+                department=department,
+                team=team,
+                visibility=visibility
+            )
 
-        performance_logger.info("Hybrid Search returned %d chunks in %.3f sec", len(docs), time.perf_counter() - start)
+            performance_logger.info("Hybrid Search returned %d chunks in %.3f sec", len(docs), time.perf_counter() - start)
+        else:
+            rag_logger.info("KB Search Skipped because Agent selected WEB")
 
         # ---------------------------------------------------
         # Cross Encoder
         # ---------------------------------------------------
 
-        start = time.perf_counter()
+        rerank_scores = []
 
-        docs, rerank_scores = rerank(
-            question,
-            docs,
-            top_k=3
-        )
+        if source in ("KB", "KB_WEB"):
 
-        performance_logger.info("Cross Encoder selected %d chunks in %.3f sec", len(docs), time.perf_counter() - start)
+            start = time.perf_counter()
+
+            docs, rerank_scores = rerank(question, docs, top_k=3)
+
+            performance_logger.info("Cross Encoder selected %d chunks in %.3f sec", len(docs), time.perf_counter() - start)
+
+        else:
+
+            rag_logger.info("Cross Encoder Skipped because Agent selected WEB")
 
         context = ""
 
@@ -149,7 +172,7 @@ def ask(
 
         web_sources = []
 
-        if use_web_search:
+        if source in ("WEB", "KB_WEB"):
 
             try:
 
@@ -158,24 +181,34 @@ def ask(
                 rag_logger.info("DuckDuckGo Search Started")
 
                 with DDGS() as ddgs:
-                    web_results = list(ddgs.text(question, max_results=1))
-                    web_context = web_results[0]["body"]
+
+                    web_results = list(ddgs.text(question, max_results=5))
+
+                if web_results:
+
+                    web_context = "\n\n".join(result.get("body", "") for result in web_results if result.get("body"))
+
+                    web_sources = [result.get("href", "DuckDuckGo") for result in web_results if result.get("href")]
 
                 performance_logger.info("Web Search completed in %.3f sec", time.perf_counter() - start)
 
                 if web_context:
 
-                    context += "\n\n========== WEB SEARCH ==========\n\n"
+                    context += ("\n\n========== WEB SEARCH ==========\n\n")
 
                     context += web_context
 
-                    web_sources.append("DuckDuckGo")
+                    rag_logger.info("Web Context Size : %d chars", len(web_context));
 
-                    rag_logger.info("Web Context Size : %d chars", len(web_context))
+                    rag_logger.info("Web Results : %d", len(web_results))
 
             except Exception as e:
 
-                error_logger.exception(f"Web Search Failed: {e}")
+                error_logger.exception("Web Search Failed: %s", e)
+
+        else:
+
+            rag_logger.info("Web Search Skipped")
 
         if context.strip() == "":
 
@@ -262,7 +295,11 @@ Answer
 
             "llm": LLM_MODEL,
 
-            "vector_db": "ChromaDB",
+            "vector_db": (
+                "ChromaDB"
+                if source in ("KB", "KB_WEB")
+                else "Not Used"
+            ),
 
             "documents": sorted(documents),
 
@@ -270,14 +307,23 @@ Answer
 
             "chunks": len(docs),
 
-            "web_used": use_web_search,
+            "web_used": (
+                    source in ("WEB", "KB_WEB")
+            ),
 
             "web_sources": web_sources,
 
-            "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+            "reranker": (
+                "cross-encoder/ms-marco-MiniLM-L-6-v2"
+                if source in ("KB", "KB_WEB")
+                else "Not Used"
+            ),
 
-            "rerank_scores": rerank_scores
+            "rerank_scores": rerank_scores,
 
+            "source": source,
+
+            "agent_decision": source
         }
 
     except Exception as ex:
@@ -424,14 +470,14 @@ def hybrid_search(
             "category": selected_category
         })
 
-    if st.session_state.department:
+    if department:
         conditions.append({
-            "department": st.session_state.department
+            "department": department
         })
 
-    if st.session_state.user:
+    if owner:
         conditions.append({
-            "uploaded_by": st.session_state.user
+            "uploaded_by": owner
         })
 
     #TODO: update visibility condition
@@ -452,6 +498,7 @@ def hybrid_search(
     st.session_state.metadata_filter = metadata_filter
 
     if metadata_filter:
+        #TODO: Metasearch update - for web search query returning response on Meta filter basis
         dense_docs = vector_db.similarity_search(question, k=5, filter=metadata_filter)
     else:
         dense_docs = vector_db.similarity_search(question, k=5)

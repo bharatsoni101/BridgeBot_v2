@@ -1,290 +1,431 @@
-# services/agent.py
-
 import time
 
-from dotenv import load_dotenv
 from langchain_groq import ChatGroq
-from services.agent_tools import knowledge_base_search
-from utils.logger import (rag_logger, performance_logger, error_logger)
+from langchain.agents import create_agent
 
-load_dotenv()
+from .agent_tools import (knowledge_base_search, web_search_tool, knowledge_base_and_web_search)
+
+from utils.logger import (
+    rag_logger,
+    performance_logger,
+    error_logger
+)
 
 
-# --------------------------------------------------------
+# ============================================================
 # Configuration
-# --------------------------------------------------------
+# ============================================================
 
 LLM_MODEL = "llama-3.3-70b-versatile"
-AGENT_TEMPERATURE = 0
-MAX_AGENT_ITERATIONS = 1
 
 
-# --------------------------------------------------------
-# Groq Agent LLM
-# --------------------------------------------------------
+# ============================================================
+# Groq LLM
+# ============================================================
 
-rag_logger.info("Initializing Agent LLM : %s", LLM_MODEL)
+rag_logger.info(
+    "Initializing Agent LLM : %s",
+    LLM_MODEL
+)
 
-agent_llm = ChatGroq(model=LLM_MODEL, temperature=AGENT_TEMPERATURE)
+llm = ChatGroq(
+    model=LLM_MODEL,
+    temperature=0
+)
 
-rag_logger.info("Agent LLM Initialized Successfully")
+rag_logger.info(
+    "Agent LLM Initialized Successfully"
+)
 
 
-# --------------------------------------------------------
-# Agent Decision
-# --------------------------------------------------------
+# ============================================================
+# Agent Tools
+# ============================================================
 
-def decide_source(question):
-    """
-    Decide whether the user's question should use
-    the internal Knowledge Base.
+tools = [
+    knowledge_base_search,
+    web_search_tool,
+    knowledge_base_and_web_search
+]
 
-    Returns:
 
-        KB
-        NOT_KB
-    """
+# ============================================================
+# Agent Instructions
+# ============================================================
 
-    start_time = time.perf_counter()
+SYSTEM_PROMPT = """
+You are BridgeBot, an enterprise Agentic RAG assistant.
 
-    rag_logger.info("-" * 70)
-    rag_logger.info("AGENT DECISION STARTED")
-    rag_logger.info("Question : %s", question)
+You have access to three search options:
 
-    try:
+1. KNOWLEDGE BASE (KB)
+   Use this when the question can be answered from
+   the organization's uploaded documents.
 
-        prompt = f"""
-You are the routing agent for an enterprise RAG application
-called BridgeBot.
+2. WEB SEARCH (WEB)
+   Use this when the question requires current,
+   public, or external internet information and
+   the internal Knowledge Base is not required.
 
-BridgeBot contains an internal Knowledge Base consisting
-of documents uploaded by authorized users.
+3. KNOWLEDGE BASE + WEB (KB_WEB)
+   Use this when the question requires both:
+   - information from internal uploaded documents
+   - external/current web information
 
-Your task is to decide whether the user's question should
-be answered using the internal Knowledge Base.
+IMPORTANT ROUTING RULES:
 
-Use KB when:
-- The question asks about information that may exist
-  in uploaded company/project documents.
-- The question refers to BridgeBot's internal knowledge.
-- The question asks about a document, policy, process,
-  architecture, project, specification, or other internal
-  information.
-- The question could reasonably be answered from the
-  uploaded documents.
+- Prefer KB when the question is about internal documents,
+  company information, uploaded PDFs, policies, procedures,
+  technical documents, or internal knowledge.
 
-Use NOT_KB when:
-- The question is casual conversation.
-- The question is unrelated to the internal documents.
-- The question is a general conversational request that
-  does not require the Knowledge Base.
+- Prefer WEB when the question requires current external
+  information, latest information, public information,
+  news, websites, or information not expected to exist
+  in the internal Knowledge Base.
 
-Return ONLY one of these values:
+- Use KB_WEB when the question requires comparing,
+  combining, or validating internal information with
+  external information.
 
-KB
+- Do not use WEB unnecessarily.
 
-NOT_KB
+- Do not use KB unnecessarily for purely public/current
+  questions.
 
-User Question:
-{question}
+- If the question clearly requires both internal and
+  external information, use KB_WEB.
+
+After selecting the appropriate tool, use that tool to
+answer the user's question.
+
+Do not explain the routing decision unless asked.
 """
 
-        response = agent_llm.invoke(prompt)
 
-        decision = response.content.strip().upper()
+# ============================================================
+# Create Agent
+# ============================================================
 
-        # ------------------------------------------------
-        # Normalize LLM Response
-        # ------------------------------------------------
+rag_logger.info(
+    "Creating Agent"
+)
 
-        if decision == "KB":
-            decision = "KB"
-        elif decision == "NOT_KB":
-            decision = "NOT_KB"
-        else:
-            rag_logger.warning(
-                "Unexpected agent decision: %s",
-                decision
-            )
-            decision = "KB"
+agent = create_agent(
+    model=llm,
+    tools=tools,
+    system_prompt=SYSTEM_PROMPT
+)
 
-        elapsed = time.perf_counter() - start_time
-
-        performance_logger.info("Agent Decision Time : %.3f sec", elapsed)
-
-        rag_logger.info("Agent Decision : %s", decision)
-
-        rag_logger.info("AGENT DECISION COMPLETED")
-
-        rag_logger.info("-" * 70)
-
-        return decision
-
-    except Exception as ex:
-
-        error_logger.exception("Agent Decision Failed : %s", ex)
-
-        # Fail safely to KB because this is your
-        # internal RAG application.
-
-        return "KB"
+rag_logger.info(
+    "Agent Created Successfully"
+)
 
 
-# --------------------------------------------------------
-# Agentic RAG
-# --------------------------------------------------------
+# ============================================================
+# Ask Agent
+# ============================================================
 
-def agentic_rag(
-        question,
-        selected_documents=None,
-        selected_category=None,
-        owner=None,
-        department=None,
-        team=None,
-        visibility=None
-):
-    """
-    Phase 1 Agentic RAG.
-
-    Flow:
-
-        Question
-            ↓
-        Agent Decision
-            ↓
-        KB
-            ↓
-        Existing RAG Pipeline
-
-    """
+def ask_agent(question,
+              selected_documents=None,
+              selected_category=None,
+              owner=None,
+              department=None,
+              team=None,
+              visibility="Private"):
 
     request_start = time.perf_counter()
 
     rag_logger.info("=" * 80)
-    rag_logger.info("AGENTIC RAG STARTED")
+    rag_logger.info("Agentic RAG Request Started")
     rag_logger.info("Question : %s", question)
 
     try:
 
-        # ------------------------------------------------
-        # Step 1: Agent decides source
-        # ------------------------------------------------
+        if not question or not question.strip():
 
-        decision = decide_source(question)
+            return {
+                "answer": "Please enter a question.",
+                "source": None,
+                "agent_decision": None,
+                "documents": [],
+                "pages": [],
+                "chunks": 0,
+                "web_used": False,
+                "web_sources": [],
+                "reranker": "Not Used",
+                "rerank_scores": [],
+                "llm": LLM_MODEL,
+                "vector_db": "Not Used"
+            }
 
-        # ------------------------------------------------
-        # Step 2: Knowledge Base
-        # ------------------------------------------------
+        # ----------------------------------------------------
+        # Invoke Agent
+        # ----------------------------------------------------
 
-        if decision == "KB":
+        start = time.perf_counter()
 
-            rag_logger.info("Agent selected Knowledge Base")
+        result = agent.invoke(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": question
+                    }
+                ]
+            }
+        )
 
-            result = knowledge_base_search.invoke({"question": question})
+        performance_logger.info(
+            "Agent Execution Time : %.3f sec",
+            time.perf_counter() - start
+        )
+
+        # ----------------------------------------------------
+        # Detect Tool Used
+        # ----------------------------------------------------
+
+        agent_decision = None
+        tool_result = None
+
+        messages = result.get("messages", [])
+
+        for message in messages:
+
+            # ToolMessage contains the result returned
+            # by agent_tools.py
+
+            message_type = message.__class__.__name__
+
+            if message_type == "ToolMessage":
+
+                tool_name = getattr(
+                    message,
+                    "name",
+                    ""
+                )
+
+                rag_logger.info(
+                    "Agent Tool Executed : %s",
+                    tool_name
+                )
+
+                if tool_name == "knowledge_base_search":
+
+                    agent_decision = "KB"
+
+                elif tool_name == "web_search_tool":
+
+                    agent_decision = "WEB"
+
+                elif tool_name == "knowledge_base_and_web_search":
+
+                    agent_decision = "KB_WEB"
+
+                # --------------------------------------------
+                # Extract Tool Result
+                # --------------------------------------------
+
+                tool_result = message.content
+
+        # ----------------------------------------------------
+        # Final Agent Answer
+        # ----------------------------------------------------
+
+        final_message = messages[-1] if messages else None
+
+        answer = getattr(
+            final_message,
+            "content",
+            "No response generated."
+        )
+
+        # ----------------------------------------------------
+        # If Tool Returned Complete RAG Result
+        # ----------------------------------------------------
+
+        if isinstance(tool_result, dict):
+
+            rag_result = tool_result.copy()
+
+            rag_result["answer"] = answer
+
+            rag_result["source"] = agent_decision
+
+            rag_result["agent_decision"] = agent_decision
+
+        else:
 
             # ------------------------------------------------
-            # Preserve Existing RAG Response Metadata
+            # Fallback
             # ------------------------------------------------
 
-            result.setdefault("llm", LLM_MODEL)
+            rag_result = {
 
-            result.setdefault("vector_db", "ChromaDB")
+                "answer": answer,
 
-            result.setdefault("reranker", "CrossEncoder")
+                "source": agent_decision,
 
-            result.setdefault("rerank_scores", [])
+                "agent_decision": agent_decision,
 
-            result.setdefault("documents", [])
+                "documents": [],
 
-            result.setdefault("pages", [])
+                "pages": [],
 
-            result.setdefault("chunks", 0)
+                "chunks": 0,
 
-            result.setdefault("web_used", False)
+                "web_used": (
+                        agent_decision in ("WEB", "KB_WEB")
+                ),
 
-            result.setdefault("web_sources", [])
+                "web_sources": [],
 
-            # ------------------------------------------------
-            # Agent Metadata
-            # ------------------------------------------------
+                "reranker": (
+                    "cross-encoder/ms-marco-MiniLM-L-6-v2"
+                    if agent_decision in ("KB", "KB_WEB")
+                    else "Not Used"
+                ),
 
-            result["agent_used"] = True
-            result["agent_decision"] = "KB"
+                "rerank_scores": [],
 
-            total_time = time.perf_counter() - request_start
+                "llm": LLM_MODEL,
 
-            performance_logger.info("Total Agentic RAG Time : %.3f sec", total_time)
+                "vector_db": (
+                    "ChromaDB"
+                    if agent_decision in ("KB", "KB_WEB")
+                    else "Not Used"
+                )
+            }
 
-            rag_logger.info("AGENTIC RAG COMPLETED")
+        # ----------------------------------------------------
+        # Guarantee Required Fields
+        # ----------------------------------------------------
 
-            rag_logger.info("=" * 80)
+        rag_result.setdefault(
+            "documents",
+            []
+        )
 
-            return result
+        rag_result.setdefault(
+            "pages",
+            []
+        )
 
-        # ------------------------------------------------
-        # Step 3: NOT KB
-        # ------------------------------------------------
+        rag_result.setdefault(
+            "chunks",
+            0
+        )
 
-        rag_logger.info("Agent decided Knowledge Base is not required")
+        rag_result.setdefault(
+            "web_used",
+            agent_decision in ("WEB", "KB_WEB")
+        )
+
+        rag_result.setdefault(
+            "web_sources",
+            []
+        )
+
+        rag_result.setdefault(
+            "reranker",
+            "Not Used"
+        )
+
+        rag_result.setdefault(
+            "rerank_scores",
+            []
+        )
+
+        rag_result.setdefault(
+            "llm",
+            LLM_MODEL
+        )
+
+        rag_result.setdefault(
+            "vector_db",
+            (
+                "ChromaDB"
+                if agent_decision in ("KB", "KB_WEB")
+                else "Not Used"
+            )
+        )
+
+        # ----------------------------------------------------
+        # Logging
+        # ----------------------------------------------------
+
+        rag_logger.info(
+            "Agent Decision : %s",
+            agent_decision
+        )
+
+        rag_logger.info(
+            "Retrieved Documents : %s",
+            rag_result["documents"]
+        )
+
+        rag_logger.info(
+            "Retrieved Pages : %s",
+            rag_result["pages"]
+        )
+
+        rag_logger.info(
+            "Chunks : %s",
+            rag_result["chunks"]
+        )
 
         total_time = time.perf_counter() - request_start
 
-        performance_logger.info("Total Agentic RAG Time : %.3f sec", total_time)
+        performance_logger.info(
+            "Total Agentic RAG Time : %.3f sec",
+            total_time
+        )
 
-        return {
-            "answer": (
-                "This question does not require "
-                "the internal Knowledge Base."
-            ),
+        rag_logger.info(
+            "Agentic RAG Request Completed"
+        )
 
-            "agent_used": True,
-            "agent_decision": "NOT_KB",
+        rag_logger.info("=" * 80)
 
-            "llm": LLM_MODEL,
-            "vector_db": "ChromaDB",
-            "reranker": "CrossEncoder",
-            "rerank_scores": [],
+        return rag_result
 
-            "documents": [],
-            "pages": [],
-            "chunks": 0,
-
-            "web_used": False,
-            "web_sources": []
-        }
-
-    except Exception as ex:
+    except Exception as e:
 
         error_logger.exception(
             "Agentic RAG Failed : %s",
-            ex
+            e
         )
 
         return {
-            "answer": "Agentic RAG processing failed.",
-            "agent_used": True,
-            "agent_decision": "ERROR",
+            "answer": f"Agentic RAG failed: {str(e)}",
+            "source": None,
+            "agent_decision": None,
             "documents": [],
             "pages": [],
             "chunks": 0,
             "web_used": False,
             "web_sources": [],
-            "error": str(ex)
+            "reranker": "Not Used",
+            "rerank_scores": [],
+            "llm": LLM_MODEL,
+            "vector_db": "Not Used"
         }
 
 
-# --------------------------------------------------------
+# ============================================================
 # Test
-# --------------------------------------------------------
+# ============================================================
 
 if __name__ == "__main__":
 
-    question = input("Enter your question: ")
+    question = input(
+        "\nEnter your question: "
+    )
 
-    result = agentic_rag(question)
+    result = ask_agent(question)
 
-    print("\nAgent Decision:")
-    print(result.get("agent_decision"))
+    print("\n===================================")
+    print("Agent Decision :", result["agent_decision"])
+    print("===================================")
 
     print("\nAnswer:")
-    print(result.get("answer"))
+    print(result["answer"])

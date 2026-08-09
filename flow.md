@@ -1,69 +1,32 @@
-                         ┌─────────────────┐
-                         │   Streamlit UI  │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         ┌─────────────────┐
-                         │ Authentication  │
-                         │ Authorization   │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         ┌─────────────────┐
-                         │  Agentic RAG    │
-                         │    Planner      │
-                         └────────┬────────┘
-                                  │
-                ┌─────────────────┼─────────────────┐
-                │                 │                 │
-                ▼                 ▼                 ▼
-          KB Search          Web Search       Metadata Search
-                │                 │                 │
-                ▼                 │                 │
-       Hybrid Search              │                 │
-       BM25 + Chroma              │                 │
-                │                 │                 │
-                ▼                 │                 │
-       Cross Encoder              │                 │
-         Reranker                 │                 │
-                │                 │                 │
-                └─────────────────┼─────────────────┘
-                                  ▼
-                         ┌─────────────────┐
-                         │ Context        │
-                         │ Evaluator      │
-                         └────────┬────────┘
-                                  │
-                       ┌──────────┴──────────┐
-                       │                     │
-                  Insufficient          Sufficient
-                       │                     │
-                       ▼                     ▼
-                 Reformulate              Groq
-                    Query                   │
-                       │                     ▼
-                       └──────────────► Final Answer
-
-
-
-----------------------
-
-Question
-↓
-Planner
-↓
-Choose KB / WEB / BOTH
-↓
-Retrieve
-↓
-Rerank
-↓
-Evaluate
-│
-├── SUFFICIENT → Answer
-│
-└── INSUFFICIENT
-↓
-Reformulate query
-↓
-Search again
+Authenticated User
+        │
+        ├── owner
+        ├── department
+        ├── team
+        └── visibility
+                │
+                ▼
+            ask_agent()
+                │
+                ▼
+            Agent decides
+            ┌─────┼─────┐
+            ▼     ▼     ▼
+            KB    WEB   KB_WEB
+            │           │
+            └─────┬─────┘
+                  ▼
+            query.ask()
+                  │
+                  ▼
+        Metadata Filtering
+                │
+        ┌───────┼────────┐
+        ▼       ▼        ▼
+        owner department  team
+                │
+                ▼
+        Hybrid Search
+                │
+                ▼
+        Cross Encoder
