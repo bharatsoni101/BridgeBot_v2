@@ -11,6 +11,7 @@ from utils.logger import (rag_logger, performance_logger, error_logger, log_perf
 #login
 from auth.login import login_page
 from auth.session import (is_logged_in, logout)
+from services.agent import agentic_rag
 
 st.set_page_config(
     page_title="BridgeBot",
@@ -308,9 +309,18 @@ if question:
 
             query_start = time.perf_counter()
             try:
-                result = ask(
+                # result = ask(
+                #     question,
+                #     use_web_search=use_web_search,
+                #     selected_documents=selected_documents,
+                #     selected_category=selected_category,
+                #     owner=st.session_state.user,
+                #     department=st.session_state.department,
+                #     team=st.session_state.team,
+                #     visibility="Private"
+                # )
+                result = agentic_rag(
                     question,
-                    use_web_search=use_web_search,
                     selected_documents=selected_documents,
                     selected_category=selected_category,
                     owner=st.session_state.user,
