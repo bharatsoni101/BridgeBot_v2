@@ -10,6 +10,8 @@ import joblib
 from reranker import rerank
 import time
 from utils.logger import (rag_logger, performance_logger, error_logger, log_performance)
+from services.context_evaluator import evaluate_context
+
 
 load_dotenv(override=True)
 
@@ -128,6 +130,21 @@ def ask(
             docs, rerank_scores = rerank(question, docs, top_k=3)
 
             performance_logger.info("Cross Encoder selected %d chunks in %.3f sec", len(docs), time.perf_counter() - start)
+
+            # ============================================================
+            # Context Evaluation
+            # ============================================================
+
+            context = "\n\n".join(doc.page_content for doc in docs)
+
+            context_evaluation = evaluate_context(question, context)
+
+            rag_logger.info("Context Evaluation Decision : %s", context_evaluation["decision"])
+
+            rag_logger.info("Context Evaluation Confidence : %.3f", context_evaluation["confidence"])
+
+            rag_logger.info("Context Evaluation Reason : %s", context_evaluation["reason"])
+
 
         else:
 
@@ -289,7 +306,7 @@ Answer
 
         rag_logger.info("=" * 80)
 
-        return {
+        result = {
 
             "answer": response.content,
 
@@ -306,6 +323,15 @@ Answer
             "pages": sorted(pages),
 
             "chunks": len(docs),
+
+            "context_evaluation":
+                context_evaluation["decision"],
+
+            "context_evaluation_reason":
+                context_evaluation["reason"],
+
+            "context_evaluation_confidence":
+                context_evaluation["confidence"],
 
             "web_used": (
                     source in ("WEB", "KB_WEB")
@@ -325,6 +351,10 @@ Answer
 
             "agent_decision": source
         }
+
+        rag_logger.info(f"====result========{result}================")
+
+        return result;
 
     except Exception as ex:
 

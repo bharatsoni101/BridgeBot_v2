@@ -360,10 +360,7 @@ if question:
 
             if result["pages"]:
 
-                pages = ", ".join(
-                    str(page + 1)
-                    for page in result["pages"]
-                )
+                pages = ", ".join(str(page + 1) for page in result["pages"])
 
                 st.write(f"**Pages :** {pages}")
 
@@ -388,8 +385,14 @@ if question:
 
             st.write("**Reranker Scores:**")
 
-            for score in result["rerank_scores"]:
-                st.write(f"{score:.4f}")
+            for score in result["rerank_scores"]: st.write(f"{score:.4f}")
+
+            st.write(f"**context_evaluation :** { result['context_evaluation'] if result['context_evaluation'] else '' }")
+
+            st.write(f"**context_evaluation_reason :** {result['context_evaluation_reason'] if result['context_evaluation_reason'] else '' }")
+
+            st.write(f"**context_evaluation_confidence :** {result['context_evaluation_confidence'] if result['context_evaluation_confidence'] else '' }")
+
 
     st.session_state.messages.append(
         {

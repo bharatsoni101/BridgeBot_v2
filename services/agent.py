@@ -1,5 +1,6 @@
 import time
-
+import json
+import ast
 from langchain_groq import ChatGroq
 from langchain.agents import create_agent
 
@@ -225,7 +226,41 @@ def ask_agent(question,
                 # Extract Tool Result
                 # --------------------------------------------
 
-                tool_result = message.content
+                raw_tool_result = message.content
+
+                rag_logger.info("Raw Tool Result Type : %s", type(raw_tool_result).__name__)
+
+                rag_logger.info("Raw Tool Result : %s", raw_tool_result)
+
+                # ----------------------------------------------------
+                # Convert ToolMessage content to dict
+                # ----------------------------------------------------
+
+                if isinstance(raw_tool_result, dict):
+
+                    tool_result = raw_tool_result
+
+                elif isinstance(raw_tool_result, str):
+
+                    try:
+
+                        tool_result = json.loads(raw_tool_result)
+
+                    except json.JSONDecodeError:
+
+                        try:
+
+                            tool_result = ast.literal_eval(
+                                raw_tool_result
+                            )
+
+                        except (ValueError, SyntaxError):
+
+                            tool_result = raw_tool_result
+
+                else:
+
+                    tool_result = raw_tool_result
 
         # ----------------------------------------------------
         # Final Agent Answer
@@ -242,6 +277,10 @@ def ask_agent(question,
         # ----------------------------------------------------
         # If Tool Returned Complete RAG Result
         # ----------------------------------------------------
+
+        rag_logger.info("Tool Result Type : %s", type(tool_result).__name__)
+
+        rag_logger.info("Tool Result : %s", tool_result)
 
         if isinstance(tool_result, dict):
 
