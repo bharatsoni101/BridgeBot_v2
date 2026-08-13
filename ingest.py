@@ -89,7 +89,7 @@ def ingest_pdf(pdf_path,
 
         if any(doc["document_name"] == document_name for doc in registry):
 
-            logger.warning("Duplicate document detected : %s", document_name)
+            rag_logger.warning("Duplicate document detected : %s", document_name)
 
             return False
 
