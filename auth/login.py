@@ -1,29 +1,52 @@
 import streamlit as st
-from auth.auth import authenticate
+
+from api_client.auth_client import login_user
 from auth.session import login
+
 
 def login_page():
 
     st.title("BridgeBot Login")
+
     username = st.text_input("Username")
+
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        user = authenticate(username, password)
 
-        if user:
+        if not username or not password:
 
-            login(user)
+            st.error("Please enter username and password.")
 
-            st.success("Login Successful")
+            return
 
-            st.session_state.user = user["username"]
-            st.session_state.role = user["role"]
-            st.session_state.department = user["department"]
-            st.session_state.team = user["team"]
+        try:
 
-            st.rerun()
+            response = login_user(username=username, password=password)
 
-        else:
+            if response:
 
-            st.error("Invalid Username or Password")
+                user = response["user"]
+
+                # Existing Streamlit session handling
+                login(user)
+
+                st.session_state.user = user["username"]
+                st.session_state.role = user["role"]
+                st.session_state.department = user["department"]
+                st.session_state.team = user["team"]
+                st.session_state.user_id = user["id"]
+
+                st.success("Login Successful")
+
+                st.rerun()
+
+            else:
+
+                st.error("Invalid Username or Password")
+
+        except Exception as ex:
+
+            st.error(
+                f"Login service unavailable: {ex}"
+            )

@@ -13,6 +13,16 @@ from auth.login import login_page
 from auth.session import (is_logged_in, logout)
 from services.agent import ask_agent
 
+from services.chat_history import (
+    initialize_chat_history,
+    new_chat,
+    load_user_chats,
+    load_chat,
+    save_user_message,
+    save_assistant_message,
+    update_conversation_title
+)
+
 st.set_page_config(
     page_title="BridgeBot",
     layout="wide"
@@ -32,6 +42,8 @@ if not is_logged_in():
 # Logged-in User
 # -------------------------------
 
+initialize_chat_history()
+
 st.sidebar.success(
     f"👤 {st.session_state.user}"
 )
@@ -49,6 +61,108 @@ if st.sidebar.button("🚪 Logout"):
     st.rerun()
 
 st.sidebar.divider()
+
+# ============================================================
+# CHAT HISTORY SESSION STATE
+# ============================================================
+
+if "conversation_id" not in st.session_state:
+    st.session_state.conversation_id = None
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if st.session_state.conversation_id is None:
+
+    conversation_id = new_chat(
+        st.session_state.user_id
+    )
+
+    st.session_state.conversation_id = conversation_id
+
+    rag_logger.info("Initial conversation created : %s", conversation_id)
+
+# ============================================================
+# NEW CHAT
+# ============================================================
+
+if st.sidebar.button(
+    "➕ New Chat",
+    use_container_width=True
+):
+
+    conversation_id = new_chat(
+        st.session_state.user_id
+    )
+
+    st.session_state.conversation_id = conversation_id
+
+    st.session_state.messages = []
+
+    rag_logger.info(
+        "New chat started | conversation_id=%s | user_id=%s",
+        conversation_id,
+        st.session_state.user_id
+    )
+
+    st.rerun()
+
+
+# ============================================================
+# CHAT HISTORY
+# ============================================================
+
+st.sidebar.subheader("💬 Chat History")
+
+conversations = load_user_chats(
+    st.session_state.user_id
+)
+
+if conversations:
+
+    for conversation in conversations:
+
+        label = conversation["title"]
+
+        if st.sidebar.button(
+            label,
+            key=f"chat_{conversation['id']}",
+            use_container_width=True
+        ):
+
+            conversation_id = conversation["id"]
+
+            messages = load_chat(
+                conversation_id,
+                st.session_state.user_id
+            )
+
+            st.session_state.conversation_id = (
+                conversation_id
+            )
+
+            st.session_state.messages = [
+                {
+                    "role": message["role"],
+                    "content": message["content"]
+                }
+                for message in messages
+            ]
+
+            rag_logger.info(
+                "Conversation Loaded | "
+                "conversation_id=%s | user_id=%s",
+                conversation_id,
+                st.session_state.user_id
+            )
+
+            st.rerun()
+
+else:
+
+    st.sidebar.info(
+        "No previous conversations."
+    )
 
 # ---------------------------------------------------
 # Configuration
@@ -298,10 +412,27 @@ if question:
             "content": question
         }
     )
+    # save conversation in db
+    save_user_message(
+        conversation_id=st.session_state.conversation_id,
+        user_id=st.session_state.user_id,
+        content=question
+    )
+
+    if len(st.session_state.messages) == 1:
+        update_conversation_title(
+            st.session_state.conversation_id,
+            st.session_state.user_id,
+            question[:60]
+        )
 
     with st.chat_message("user"):
 
         st.markdown(question)
+
+    # ========================================================
+    # Agentic RAG
+    # ========================================================
 
     with st.chat_message("assistant"):
 
@@ -314,9 +445,9 @@ if question:
                     question,
                     selected_documents=selected_documents,
                     selected_category=selected_category,
-                    owner=st.session_state.get("owner"),
-                    department=st.session_state.get("department"),
-                    team=st.session_state.get("team"),
+                    owner=st.session_state.get("owner", None),
+                    department=st.session_state.get("department", None),
+                    team=st.session_state.get("team", None),
                     visibility=st.session_state.get("visibility", "Private")
                 )
 
@@ -347,6 +478,38 @@ if question:
             performance_logger.info( "Query Processing Time : %.3f sec", query_time )
 
         st.markdown(result["answer"])
+
+        # ========================================================
+        # Save Assistant Message
+        # ========================================================
+
+        save_assistant_message(
+
+            conversation_id=(st.session_state.conversation_id),
+
+            user_id=(st.session_state.user_id),
+
+            content=result["answer"],
+
+            source=result.get("agent_decision"),
+
+            metadata=result
+        )
+
+        # ========================================================
+        # Update UI
+        # ========================================================
+
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": result["answer"]
+            }
+        )
+
+        # ========================================================
+        # 📌 Sources Used
+        # ========================================================
 
         with st.expander("📌 Sources Used", expanded=False):
 
@@ -387,11 +550,9 @@ if question:
 
             for score in result["rerank_scores"]: st.write(f"{score:.4f}")
 
-            st.write(f"**context_evaluation :** { result['context_evaluation'] if result['context_evaluation'] else '' }")
-
-            st.write(f"**context_evaluation_reason :** {result['context_evaluation_reason'] if result['context_evaluation_reason'] else '' }")
-
-            st.write(f"**context_evaluation_confidence :** {result['context_evaluation_confidence'] if result['context_evaluation_confidence'] else '' }")
+            st.write(f"**context_evaluation :** {result.get('context_evaluation', '')}")
+            st.write(f"**context_evaluation :** {result.get('context_evaluation_reason', '')}")
+            st.write(f"**context_evaluation :** {result.get('context_evaluation_confidence', '')}")
 
 
     st.session_state.messages.append(

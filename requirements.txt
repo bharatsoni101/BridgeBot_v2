@@ -70,6 +70,12 @@ sentence-transformers==5.1.0
 # ----------------------------
 bcrypt==4.2.0
 
+# ----------------------------
+# FastAPI Backend
+# ----------------------------
+fastapi
+uvicorn[standard]
+
 
 
 #---Test Github URL-------------
